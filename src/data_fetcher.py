@@ -2,50 +2,98 @@
 MLB Data Fetcher Module
 
 This module provides functionality to fetch MLB statistics from the MLB Stats API.
+It handles all the communication with the official MLB API to get player and team data.
 """
 
-import requests
-import json
-from typing import Dict, List, Optional, Union
-from datetime import datetime
-import time
+# Import statements - these bring in code libraries we need to use
+import requests  # This library helps us make requests to websites/APIs on the internet
+import json  # This library helps us work with JSON data (a common data format)
+from typing import Dict, List, Optional, Union  # These help us specify what type of data to expect
+from datetime import datetime  # This helps us work with dates and times
+import time  # This helps us work with time-related functions
 
 
 class MLBDataFetcher:
-    """Fetches data from the MLB Stats API."""
+    """
+    This class is responsible for fetching (getting) data from the MLB Stats API.
     
-    BASE_URL = "https://statsapi.mlb.com/api/v1"
-    
-    def __init__(self):
-        """Initialize the MLB Data Fetcher."""
-        self.session = requests.Session()
-        
+    Think of this class as a messenger that goes to MLB's website and brings back
+    information about players, teams, and games.
+    """
     def _make_request(self, endpoint: str, params: Optional[Dict] = None) -> Dict:
         """
         Make a request to the MLB Stats API.
         
+        This is a helper function (the underscore _ prefix means it's for internal use).
+        It handles the actual communication with the MLB API.
+        
         Args:
-            endpoint: API endpoint path
-            params: Query parameters
+            endpoint: The specific part of the API we want to access (like "teams" or "players")
+            params: Optional additional parameters to customize our request
             
         Returns:
-            JSON response as dictionary
+            A dictionary containing the data we requested from the API
         """
+        # Build the complete URL by combining the base URL with the specific endpoint
+        # For example: "https://statsapi.mlb.com/api/v1/teams"
         url = f"{self.BASE_URL}/{endpoint}"
+        
         try:
+            # Try to get data from the URL
+            # timeout=10 means we'll wait up to 10 seconds for a response
             response = self.session.get(url, params=params, timeout=10)
+            
+            # Check if the request was successful (no errors from the server)
             response.raise_for_status()
+            
+            # Convert the response from JSON format into a Python dictionary
+            # and return it so other functions can use the data
             return response.json()
+            
         except requests.exceptions.RequestException as e:
+            # If something went wrong (like no internet connection or bad URL),
+            # print an error message and return an empty dictionary
             print(f"Error fetching data from {url}: {e}")
-            return {}
-    
+            return {}t to the MLB Stats API.
+        
     def get_player_stats(self, player_id: int, season: int, 
                         stat_group: str = "hitting") -> Dict:
         """
         Get player statistics for a specific season.
         
+        This function retrieves all the statistics for a particular player
+        (like batting average, home runs, etc.) for a given year.
+        
         Args:
+            player_id: The unique ID number that MLB assigns to each player
+            season: The year you want stats for (like 2024)
+            stat_group: What type of stats you want: 'hitting', 'pitching', or 'fielding'
+            
+        Returns:
+            A dictionary containing all the player's statistics
+        """
+        # Create the endpoint (URL path) to get this specific player's data
+        # For example: "people/660271" for Aaron Judge
+        endpoint = f"people/{player_id}"
+        
+        # Set up the parameters to specify what data we want
+        # "hydrate" tells the API to include detailed stats
+        # We're asking for year-by-year stats for the specified stat group
+        params = {
+            "hydrate": f"stats(group=[{stat_group}],type=[yearByYear])"
+        }
+        
+        # Make the actual request to the API
+        data = self._make_request(endpoint, params)
+        
+        # Check if we got valid data back
+        # We check: 1) Did we get any data? 2) Does it have a "people" key? 3) Is there at least one person?
+        if data and "people" in data and len(data["people"]) > 0:
+            # Return the first (and only) player's data
+            return data["people"][0]
+        
+        # If we didn't get valid data, return an empty dictionary
+        return {}
             player_id: MLB player ID
             season: Season year
             stat_group: Type of stats ('hitting', 'pitching', 'fielding')
