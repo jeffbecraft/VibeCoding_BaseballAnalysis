@@ -450,7 +450,7 @@ if query:
                 st.markdown("### Results")
                 st.dataframe(
                     result,
-                    use_container_width=True,
+                    width='stretch',
                     hide_index=True
                 )
                 
