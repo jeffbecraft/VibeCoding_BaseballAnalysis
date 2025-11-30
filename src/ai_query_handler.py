@@ -257,6 +257,98 @@ class AIQueryHandler:
                 ]
             }
     
+    def handle_query_with_retry(self, question: str, season: int = None, 
+                                report_progress: callable = None) -> Dict[str, Any]:
+        """
+        Handle a natural language query with automatic retry on failure.
+        
+        This wraps handle_query() and automatically retries failed queries
+        by providing the AI with error feedback for a second attempt.
+        
+        Args:
+            question: User's natural language question
+            season: Optional season year (defaults to current year)
+            report_progress: Optional callback for progress updates
+            
+        Returns:
+            Dictionary with query results, same format as handle_query()
+        """
+        if report_progress is None:
+            report_progress = lambda step, msg: None
+        
+        # First attempt
+        result = self.handle_query(question, season, report_progress)
+        
+        # If successful or if error is due to safety check, return immediately
+        if result.get('success'):
+            return result
+        
+        error_msg = result.get('error', '')
+        
+        # Don't retry on security/safety failures
+        if 'safety check' in error_msg.lower() or 'unauthorized' in error_msg.lower():
+            return result
+        
+        # Don't retry if no AI is available or if it's a handler error
+        if not self.ai_available or 'AI query handling failed' in error_msg:
+            return result
+        
+        # Attempt retry with error feedback
+        report_progress("Retry", "First attempt failed. Trying again with error feedback...")
+        
+        try:
+            # Generate improved code with error context
+            code = self._generate_code_with_feedback(question, season, result)
+            
+            if not code:
+                # Return original result if retry generation failed
+                result['retry_attempted'] = True
+                result['retry_failed'] = 'Could not generate improved code'
+                return result
+            
+            # Validate the retry code
+            is_safe, safety_message = self._validate_code_safety(code)
+            if not is_safe:
+                result['retry_attempted'] = True
+                result['retry_failed'] = f'Retry code failed safety check: {safety_message}'
+                return result
+            
+            # Execute the retry code
+            report_progress("Retry", "Executing improved code...")
+            start_time = time.time()
+            retry_result = self._execute_code(code, question, season)
+            execution_time = time.time() - start_time
+            
+            if retry_result.get('success'):
+                # Cache successful retry
+                self.code_cache.set(question, season, code, success=True, execution_time=execution_time)
+                
+                retry_result['cached'] = False
+                retry_result['retry_attempted'] = True
+                retry_result['retry_succeeded'] = True
+                retry_result['steps'] = [
+                    f"✓ AI ({self.provider}) interpreted your question",
+                    "✗ First attempt failed",
+                    "✓ AI learned from error and generated improved code",
+                    "✓ Retry code passed security validation",
+                    f"✓ Executed retry query in {execution_time:.2f}s and retrieved data",
+                    "✓ Cached improved code for future queries"
+                ]
+                report_progress("Complete", "Query succeeded on retry!")
+                return retry_result
+            else:
+                # Retry also failed
+                result['retry_attempted'] = True
+                result['retry_failed'] = retry_result.get('error', 'Unknown retry error')
+                result['retry_code'] = code
+                return result
+        
+        except Exception as e:
+            # Return original result with retry error info
+            result['retry_attempted'] = True
+            result['retry_failed'] = f'Retry exception: {str(e)}'
+            return result
+    
     def _generate_code(self, question: str, season: int) -> str:
         """
         Use AI to generate Python code that answers the question.
@@ -322,17 +414,22 @@ Code:
 ```python
 try:
     leaders = data_fetcher.get_stats_leaders('homeRuns', season, 1, 'hitting')
-    processed = data_processor.extract_stats_leaders(leaders)
-    if not processed.empty:
-        player = processed.iloc[0]
-        result = {
-            'success': True,
-            'data': processed.to_dict('records'),
-            'answer': f"{player['playerName']} hit the most home runs with {player['value']} HR",
-            'explanation': 'Retrieved hitting leaders for home runs from MLB API'
-        }
+    if not leaders:
+        result = {'success': False, 'error': 'No leaders data returned from API'}
     else:
-        result = {'success': False, 'error': 'No data found'}
+        processed = data_processor.extract_stats_leaders(leaders)
+        if not processed.empty and len(processed) > 0:
+            player = processed.iloc[0]
+            player_name = player.get('playerName', 'Unknown')
+            hr_value = player.get('value', 0)
+            result = {
+                'success': True,
+                'data': processed.to_dict('records'),
+                'answer': f"{player_name} hit the most home runs with {hr_value} HR",
+                'explanation': 'Retrieved hitting leaders for home runs from MLB API'
+            }
+        else:
+            result = {'success': False, 'error': 'No data found for this query'}
 except Exception as e:
     result = {'success': False, 'error': str(e)}
 ```
@@ -344,25 +441,31 @@ Code:
 try:
     # Search for player
     players = data_fetcher.search_players('Aaron Judge')
-    if not players:
+    if not players or len(players) == 0:
         result = {'success': False, 'error': 'Player not found'}
     else:
-        player_id = players[0]['id']
-        player_name = players[0]['fullName']
+        player_id = players[0].get('id')
+        player_name = players[0].get('fullName', 'Unknown Player')
         
-        # Get career stats
-        career_data = data_fetcher.get_player_career_stats(player_id, 'hitting')
-        career_totals = data_processor.aggregate_career_stats(career_data, 'hitting')
-        
-        total_hrs = career_totals['totals'].get('homeRuns', 0)
-        seasons = career_totals['seasons']
-        
-        result = {
-            'success': True,
-            'data': {'player': player_name, 'career_home_runs': total_hrs, 'seasons': seasons},
-            'answer': f"{player_name} has {total_hrs} career home runs across {seasons} seasons",
-            'explanation': 'Retrieved and aggregated career statistics for player'
-        }
+        if not player_id:
+            result = {'success': False, 'error': 'Player ID not found in search results'}
+        else:
+            # Get career stats
+            career_data = data_fetcher.get_player_career_stats(player_id, 'hitting')
+            if not career_data:
+                result = {'success': False, 'error': 'No career data available for player'}
+            else:
+                career_totals = data_processor.aggregate_career_stats(career_data, 'hitting')
+                
+                total_hrs = career_totals.get('totals', {}).get('homeRuns', 0)
+                seasons = career_totals.get('seasons', 0)
+                
+                result = {
+                    'success': True,
+                    'data': {'player': player_name, 'career_home_runs': total_hrs, 'seasons': seasons},
+                    'answer': f"{player_name} has {total_hrs} career home runs across {seasons} seasons",
+                    'explanation': 'Retrieved and aggregated career statistics for player'
+                }
 except Exception as e:
     result = {'success': False, 'error': str(e)}
 ```
@@ -376,22 +479,35 @@ try:
     judge_results = data_fetcher.search_players('Aaron Judge')
     soto_results = data_fetcher.search_players('Juan Soto')
     
-    if not judge_results or not soto_results:
-        result = {'success': False, 'error': 'One or both players not found'}
+    if not judge_results or len(judge_results) == 0:
+        result = {'success': False, 'error': 'Aaron Judge not found'}
+    elif not soto_results or len(soto_results) == 0:
+        result = {'success': False, 'error': 'Juan Soto not found'}
     else:
-        # Get career data
-        judge_career = data_fetcher.get_player_career_stats(judge_results[0]['id'], 'hitting')
-        soto_career = data_fetcher.get_player_career_stats(soto_results[0]['id'], 'hitting')
+        judge_id = judge_results[0].get('id')
+        soto_id = soto_results[0].get('id')
+        judge_name = judge_results[0].get('fullName', 'Aaron Judge')
+        soto_name = soto_results[0].get('fullName', 'Juan Soto')
         
-        # Compare careers
-        comparison_df = data_processor.compare_player_careers(judge_career, soto_career, 'hitting')
-        
-        result = {
-            'success': True,
-            'data': comparison_df.to_dict('records'),
-            'answer': f"Career comparison between {judge_results[0]['fullName']} and {soto_results[0]['fullName']}",
-            'explanation': 'Compared career statistics for both players'
-        }
+        if not judge_id or not soto_id:
+            result = {'success': False, 'error': 'Player IDs not found in search results'}
+        else:
+            # Get career data
+            judge_career = data_fetcher.get_player_career_stats(judge_id, 'hitting')
+            soto_career = data_fetcher.get_player_career_stats(soto_id, 'hitting')
+            
+            if not judge_career or not soto_career:
+                result = {'success': False, 'error': 'Career data not available for one or both players'}
+            else:
+                # Compare careers
+                comparison_df = data_processor.compare_player_careers(judge_career, soto_career, 'hitting')
+                
+                result = {
+                    'success': True,
+                    'data': comparison_df.to_dict('records'),
+                    'answer': f"Career comparison between {judge_name} and {soto_name}",
+                    'explanation': 'Compared career statistics for both players'
+                }
 except Exception as e:
     result = {'success': False, 'error': str(e)}
 ```
@@ -405,63 +521,79 @@ try:
     judge_results = data_fetcher.search_players('Aaron Judge')
     raleigh_results = data_fetcher.search_players('Cal Raleigh')
     
-    if not judge_results or not raleigh_results:
-        result = {'success': False, 'error': 'One or both players not found'}
+    if not judge_results or len(judge_results) == 0:
+        result = {'success': False, 'error': 'Aaron Judge not found'}
+    elif not raleigh_results or len(raleigh_results) == 0:
+        result = {'success': False, 'error': 'Cal Raleigh not found'}
     else:
-        # Get season stats for both players (returns nested structure)
-        judge_stats_raw = data_fetcher.get_player_season_stats(judge_results[0]['id'], season)
-        raleigh_stats_raw = data_fetcher.get_player_season_stats(raleigh_results[0]['id'], season)
+        judge_id = judge_results[0].get('id')
+        raleigh_id = raleigh_results[0].get('id')
+        judge_name = judge_results[0].get('fullName', 'Aaron Judge')
+        raleigh_name = raleigh_results[0].get('fullName', 'Cal Raleigh')
         
-        # Parse the nested stats structure: stats[0]['splits'][0]['stat']
-        judge_stats = {}
-        if judge_stats_raw and 'stats' in judge_stats_raw:
-            for stat_group in judge_stats_raw['stats']:
-                if stat_group.get('group', {}).get('displayName') == 'hitting' and stat_group.get('splits'):
-                    judge_stats = stat_group['splits'][0]['stat']
-                    break
-        
-        raleigh_stats = {}
-        if raleigh_stats_raw and 'stats' in raleigh_stats_raw:
-            for stat_group in raleigh_stats_raw['stats']:
-                if stat_group.get('group', {}).get('displayName') == 'hitting' and stat_group.get('splits'):
-                    raleigh_stats = stat_group['splits'][0]['stat']
-                    break
-        
-        # Check if we have data for both players
-        if not judge_stats or not raleigh_stats:
-            result = {'success': False, 'error': f'No {season} season data available yet for one or both players'}
+        if not judge_id or not raleigh_id:
+            result = {'success': False, 'error': 'Player IDs not found in search results'}
         else:
-            # Extract key hitting stats for comparison
-            judge_data = {
-                'player': judge_results[0]['fullName'],
-                'games': judge_stats.get('gamesPlayed', 0),
-                'avg': judge_stats.get('avg', '.000'),
-                'hr': judge_stats.get('homeRuns', 0),
-                'rbi': judge_stats.get('rbi', 0),
-                'runs': judge_stats.get('runs', 0),
-                'sb': judge_stats.get('stolenBases', 0),
-                'ops': judge_stats.get('ops', '.000')
-            }
+            # Get season stats for both players (returns nested structure)
+            judge_stats_raw = data_fetcher.get_player_season_stats(judge_id, season)
+            raleigh_stats_raw = data_fetcher.get_player_season_stats(raleigh_id, season)
             
-            raleigh_data = {
-                'player': raleigh_results[0]['fullName'],
-                'games': raleigh_stats.get('gamesPlayed', 0),
-                'avg': raleigh_stats.get('avg', '.000'),
-                'hr': raleigh_stats.get('homeRuns', 0),
-                'rbi': raleigh_stats.get('rbi', 0),
-                'runs': raleigh_stats.get('runs', 0),
-                'sb': raleigh_stats.get('stolenBases', 0),
-                'ops': raleigh_stats.get('ops', '.000')
-            }
+            # Parse the nested stats structure: stats[0]['splits'][0]['stat']
+            judge_stats = {}
+            if judge_stats_raw and 'stats' in judge_stats_raw and len(judge_stats_raw.get('stats', [])) > 0:
+                for stat_group in judge_stats_raw['stats']:
+                    if stat_group.get('group', {}).get('displayName') == 'hitting':
+                        splits = stat_group.get('splits', [])
+                        if splits and len(splits) > 0:
+                            judge_stats = splits[0].get('stat', {})
+                            break
             
-            comparison_df = pd.DataFrame([judge_data, raleigh_data])
+            raleigh_stats = {}
+            if raleigh_stats_raw and 'stats' in raleigh_stats_raw and len(raleigh_stats_raw.get('stats', [])) > 0:
+                for stat_group in raleigh_stats_raw['stats']:
+                    if stat_group.get('group', {}).get('displayName') == 'hitting':
+                        splits = stat_group.get('splits', [])
+                        if splits and len(splits) > 0:
+                            raleigh_stats = splits[0].get('stat', {})
+                            break
             
-            result = {
-                'success': True,
-                'data': comparison_df.to_dict('records'),
-                'answer': f"{season} season comparison: {judge_results[0]['fullName']} vs {raleigh_results[0]['fullName']}",
-                'explanation': f'Retrieved and compared {season} season statistics for both players'
-            }
+            # Check if we have data for both players
+            if not judge_stats:
+                result = {'success': False, 'error': f'No {season} season hitting data available for {judge_name}'}
+            elif not raleigh_stats:
+                result = {'success': False, 'error': f'No {season} season hitting data available for {raleigh_name}'}
+            else:
+                # Extract key hitting stats for comparison
+                judge_data = {
+                    'player': judge_name,
+                    'games': judge_stats.get('gamesPlayed', 0),
+                    'avg': judge_stats.get('avg', '.000'),
+                    'hr': judge_stats.get('homeRuns', 0),
+                    'rbi': judge_stats.get('rbi', 0),
+                    'runs': judge_stats.get('runs', 0),
+                    'sb': judge_stats.get('stolenBases', 0),
+                    'ops': judge_stats.get('ops', '.000')
+                }
+                
+                raleigh_data = {
+                    'player': raleigh_name,
+                    'games': raleigh_stats.get('gamesPlayed', 0),
+                    'avg': raleigh_stats.get('avg', '.000'),
+                    'hr': raleigh_stats.get('homeRuns', 0),
+                    'rbi': raleigh_stats.get('rbi', 0),
+                    'runs': raleigh_stats.get('runs', 0),
+                    'sb': raleigh_stats.get('stolenBases', 0),
+                    'ops': raleigh_stats.get('ops', '.000')
+                }
+                
+                comparison_df = pd.DataFrame([judge_data, raleigh_data])
+                
+                result = {
+                    'success': True,
+                    'data': comparison_df.to_dict('records'),
+                    'answer': f"{season} season comparison: {judge_name} vs {raleigh_name}",
+                    'explanation': f'Retrieved and compared {season} season statistics for both players'
+                }
 except Exception as e:
     result = {'success': False, 'error': str(e)}
 ```
@@ -473,30 +605,37 @@ Code:
 try:
     # Get leaders to show both in context
     leaders = data_fetcher.get_stats_leaders('homeRuns', season, 100, 'hitting', include_all=True)
-    leaders_df = data_processor.extract_stats_leaders(leaders)
-    
-    if leaders_df.empty:
-        result = {'success': False, 'error': 'No leaders data found'}
+    if not leaders:
+        result = {'success': False, 'error': 'No leaders data returned from API'}
     else:
-        # Find both players
-        judge_row = leaders_df[leaders_df['playerName'].str.contains('Judge', case=False, na=False)]
-        soto_row = leaders_df[leaders_df['playerName'].str.contains('Soto', case=False, na=False)]
+        leaders_df = data_processor.extract_stats_leaders(leaders)
         
-        comparison_text = ""
-        if not judge_row.empty and not soto_row.empty:
-            judge_rank = judge_row.iloc[0]['rank']
-            judge_hrs = judge_row.iloc[0]['value']
-            soto_rank = soto_row.iloc[0]['rank']
-            soto_hrs = soto_row.iloc[0]['value']
+        if leaders_df.empty or len(leaders_df) == 0:
+            result = {'success': False, 'error': 'No leaders data found for this stat'}
+        else:
+            # Find both players
+            judge_row = leaders_df[leaders_df['playerName'].str.contains('Judge', case=False, na=False)]
+            soto_row = leaders_df[leaders_df['playerName'].str.contains('Soto', case=False, na=False)]
             
-            comparison_text = f"Aaron Judge: #{judge_rank} with {judge_hrs} HR, Juan Soto: #{soto_rank} with {soto_hrs} HR"
-        
-        result = {
-            'success': True,
-            'data': leaders_df.head(50).to_dict('records'),
-            'answer': comparison_text if comparison_text else "Home run leaders comparison",
-            'explanation': f'Retrieved {season} home run leaders showing both players in ranked context'
-        }
+            comparison_text = ""
+            if not judge_row.empty and len(judge_row) > 0 and not soto_row.empty and len(soto_row) > 0:
+                judge_rank = judge_row.iloc[0].get('rank', 'N/A')
+                judge_hrs = judge_row.iloc[0].get('value', 0)
+                soto_rank = soto_row.iloc[0].get('rank', 'N/A')
+                soto_hrs = soto_row.iloc[0].get('value', 0)
+                
+                comparison_text = f"Aaron Judge: #{judge_rank} with {judge_hrs} HR, Juan Soto: #{soto_rank} with {soto_hrs} HR"
+            elif judge_row.empty:
+                comparison_text = "Aaron Judge not found in leaders list"
+            elif soto_row.empty:
+                comparison_text = "Juan Soto not found in leaders list"
+            
+            result = {
+                'success': True,
+                'data': leaders_df.head(50).to_dict('records'),
+                'answer': comparison_text if comparison_text else "Home run leaders comparison",
+                'explanation': f'Retrieved {season} home run leaders showing both players in ranked context'
+            }
 except Exception as e:
     result = {'success': False, 'error': str(e)}
 ```
@@ -641,6 +780,7 @@ Generate Python code to answer this question using the MLB API."""
                 'sorted': sorted,
                 'any': any,
                 'all': all,
+                'next': next,  # Allow next() for iterators
                 'print': print,  # Allow print for debugging
                 'Exception': Exception,
                 'ValueError': ValueError,
@@ -688,6 +828,82 @@ Generate Python code to answer this question using the MLB API."""
                 'generated_code': code,
                 'ai_generated': True
             }
+    
+    def _generate_code_with_feedback(self, question: str, season: int, 
+                                      previous_result: Dict[str, Any]) -> str:
+        """
+        Generate improved code using feedback from a failed attempt.
+        
+        Args:
+            question: User's question
+            season: Season year
+            previous_result: Failed result from first attempt
+            
+        Returns:
+            Improved Python code as string
+        """
+        # Extract error information
+        error = previous_result.get('error', 'Unknown error')
+        traceback_info = previous_result.get('traceback', '')
+        previous_code = previous_result.get('generated_code', '')
+        
+        # Create feedback prompt
+        feedback_prompt = f"""Your previous attempt to answer this question failed.
+
+Question: {question}
+Season: {season}
+
+Previous code:
+```python
+{previous_code}
+```
+
+Error that occurred:
+{error}
+
+Traceback:
+{traceback_info}
+
+Please generate IMPROVED code that fixes this error. Common issues:
+1. Always check list length before accessing with [0] - use: if items and len(items) > 0:
+2. Always use .get() for dictionary access - use: dict.get('key', default)
+3. Check if API response is None or empty before processing
+4. Validate nested data exists before accessing - check 'stats' in data and len(data['stats']) > 0
+5. Use built-in functions available in sandbox: len, str, int, sum, min, max, sorted, any, all
+6. Do NOT use Python built-ins not in sandbox like: next, iter, reversed, enumerate for complex cases
+
+Generate ONLY the corrected Python code, no explanations."""
+        
+        try:
+            if self.provider == "ollama":
+                response = self.ollama.chat(
+                    model=self.model,
+                    messages=[
+                        {"role": "user", "content": feedback_prompt}
+                    ]
+                )
+                generated_code = response['message']['content'].strip()
+            else:
+                response = self.openai.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {"role": "user", "content": feedback_prompt}
+                    ],
+                    temperature=0.2,
+                    max_tokens=1000
+                )
+                generated_code = response.choices[0].message.content.strip()
+            
+            # Extract code from markdown if present
+            code_match = re.search(r'```python\n(.*?)\n```', generated_code, re.DOTALL)
+            if code_match:
+                generated_code = code_match.group(1)
+            
+            return generated_code
+        
+        except Exception as e:
+            print(f"Error generating code with feedback: {e}")
+            return ""
     
     def test_connection(self) -> Dict[str, Any]:
         """

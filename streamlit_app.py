@@ -246,7 +246,7 @@ class StreamlitMLBQuery:
                 def update_progress(step: str, detail: str):
                     progress_container.info(f"**{step}:** {detail}")
                 
-                ai_result = st.session_state.ai_handler.handle_query(query_text, season, progress_callback=update_progress)
+                ai_result = st.session_state.ai_handler.handle_query_with_retry(query_text, season, report_progress=update_progress)
                 
                 # Clear progress, show steps
                 progress_container.empty()
@@ -297,7 +297,7 @@ class StreamlitMLBQuery:
                 def update_progress(step: str, detail: str):
                     progress_container.info(f"**{step}:** {detail}")
                 
-                ai_result = st.session_state.ai_handler.handle_query(query_text, season, progress_callback=update_progress)
+                ai_result = st.session_state.ai_handler.handle_query_with_retry(query_text, season, report_progress=update_progress)
                 
                 # Clear progress, show steps
                 progress_container.empty()
