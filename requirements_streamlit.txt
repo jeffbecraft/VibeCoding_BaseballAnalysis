@@ -22,9 +22,9 @@ statsmodels>=0.14.0
 # Uncomment if you want Sentry monitoring:
 # sentry-sdk>=1.40.0
 
-# Optional: OpenAI for AI queries (COSTS MONEY - not included by default)
-# Only uncomment if you plan to use OpenAI and have an API key:
-# openai>=1.10.0
+# OpenAI for AI queries (requires API key and costs money per query)
+# Enables advanced natural language queries beyond standard patterns
+openai>=1.10.0
 
 # Note: Ollama is NOT available on Streamlit Cloud (local only)
-# The app will work fine without AI - it falls back to standard queries
+# With OpenAI enabled, the app supports both standard queries AND AI-powered queries
