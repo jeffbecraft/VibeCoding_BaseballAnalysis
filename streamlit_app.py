@@ -21,6 +21,7 @@ from helpers import get_team_name, get_current_season, TEAM_IDS, LEAGUE_IDS
 from stat_constants import STAT_MAPPINGS, PITCHING_STATS
 from ai_query_handler import AIQueryHandler
 from github_issue_reporter import GitHubIssueReporter
+from player_images import get_player_headshot_url, get_player_action_shot_url
 from logger import get_logger
 import re
 from typing import Optional, Dict
@@ -851,6 +852,80 @@ class StreamlitMLBQuery:
 if 'query_handler' not in st.session_state:
     st.session_state.query_handler = StreamlitMLBQuery()
 
+
+def display_player_card(player_name: str, size: str = "medium", show_info: bool = True):
+    """
+    Display a baseball card image for a player.
+    
+    Args:
+        player_name: Name of the player to display
+        size: Image size - 'small', 'medium', or 'large'
+        show_info: Whether to show additional player information
+    
+    Returns:
+        The player data dictionary if found, None otherwise
+    """
+    try:
+        # Search for the player
+        players = st.session_state.fetcher.search_players(player_name)
+        
+        if not players:
+            return None
+        
+        player = players[0]
+        player_id = player.get('id')
+        full_name = player.get('fullName', player_name)
+        
+        # Get the headshot URL
+        headshot_url = get_player_headshot_url(player_id, size)
+        
+        # Create a card-like display
+        if show_info:
+            # Display with player info
+            col1, col2 = st.columns([1, 2])
+            
+            with col1:
+                st.image(headshot_url, use_container_width=True)
+            
+            with col2:
+                st.markdown(f"### {full_name}")
+                
+                if 'primaryNumber' in player:
+                    st.markdown(f"**#** {player['primaryNumber']}")
+                
+                if 'primaryPosition' in player:
+                    position = player['primaryPosition'].get('name', '')
+                    st.markdown(f"**Position:** {position}")
+                
+                if 'currentTeam' in player:
+                    team_id = player['currentTeam'].get('id')
+                    team_name = get_team_name(team_id)
+                    st.markdown(f"**Team:** {team_name}")
+                
+                if 'batSide' in player and 'pitchHand' in player:
+                    bats = player['batSide'].get('description', 'Unknown')
+                    throws = player['pitchHand'].get('description', 'Unknown')
+                    st.markdown(f"**Bats/Throws:** {bats}/{throws}")
+                
+                if 'height' in player and 'weight' in player:
+                    st.markdown(f"**Height/Weight:** {player['height']} / {player['weight']} lbs")
+                
+                if 'birthDate' in player:
+                    from datetime import datetime
+                    birth_date = datetime.strptime(player['birthDate'], '%Y-%m-%d')
+                    age = player.get('currentAge', '')
+                    st.markdown(f"**Age:** {age}")
+        else:
+            # Just display the image
+            st.image(headshot_url, caption=full_name, use_container_width=False)
+        
+        return player
+        
+    except Exception as e:
+        logger.error(f"Error displaying player card: {e}")
+        return None
+
+
 # Header
 st.title("⚾ MLB Statistics Query")
 st.markdown("Ask questions about MLB statistics in natural language!")
@@ -1273,6 +1348,11 @@ if query:
             
             # Check if it's a career breakdown
             elif result.get('type') == 'career_breakdown':
+                # Display player baseball card at the top
+                st.markdown("---")
+                player_card_data = display_player_card(result['player'], size='medium', show_info=True)
+                st.markdown("---")
+                
                 st.markdown(f"### Career Statistics for {result['player']}")
                 
                 # Show season-by-season breakdown
@@ -1335,6 +1415,12 @@ if query:
             
             else:
                 # Single player stat or ranking
+                # Check if this is a player-specific query and display card
+                if 'player' in result and isinstance(result['player'], str):
+                    st.markdown("---")
+                    player_card_data = display_player_card(result['player'], size='medium', show_info=True)
+                    st.markdown("---")
+                
                 st.markdown("### Results")
                 
                 # Check if there's leaders context to show
