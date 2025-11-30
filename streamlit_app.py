@@ -144,6 +144,8 @@ class StreamlitMLBQuery:
                 ]
                 
                 player_name = None
+                all_player_names = []  # Collect all potential player names for comparisons
+                
                 for pattern in name_patterns:
                     matches = re.finditer(pattern, query)
                     for name_match in matches:
@@ -155,9 +157,11 @@ class StreamlitMLBQuery:
                             if (potential_name_lower != team_name.lower() if team_name else True and
                                 potential_name_lower != league_name.lower() if league_name else True and
                                 len(potential_name) > 2):
-                                player_name = potential_name
-                                break
-                    if player_name:
+                                # For comparisons, collect all names; for others, take the first
+                                if not player_name:
+                                    player_name = potential_name
+                                all_player_names.append(potential_name)
+                    if player_name and not (has_comparison_word and has_or):  # Don't break early for comparison queries
                         break
                 
                 # Determine query type
@@ -165,8 +169,17 @@ class StreamlitMLBQuery:
                 wants_ranking = any(keyword in query_lower for keyword in ranking_keywords)
                 
                 # Check for comparison queries
+                # Direct comparison keywords
                 comparison_keywords = ['compare', 'versus', 'vs', 'vs.', 'against', 'better than', 'worse than']
-                is_comparison = any(keyword in query_lower for keyword in comparison_keywords)
+                has_comparison_keyword = any(keyword in query_lower for keyword in comparison_keywords)
+                
+                # Indirect comparison: "who had more X" or "which player has better Y"
+                comparison_words = ['more', 'better', 'worse', 'less', 'fewer']
+                has_comparison_word = any(word in query_lower for word in comparison_words)
+                has_or = ' or ' in query_lower
+                
+                # It's a comparison if: explicit keyword OR (comparison word + 'or')
+                is_comparison = has_comparison_keyword or (has_comparison_word and has_or)
                 
                 # Career-specific query types
                 if is_career_query:
@@ -204,6 +217,7 @@ class StreamlitMLBQuery:
                 
                 return {
                     'player_name': player_name,
+                    'all_player_names': all_player_names,  # For comparison queries
                     'stat_type': stat_type,
                     'stat_group': stat_group,
                     'year': year,
@@ -215,6 +229,28 @@ class StreamlitMLBQuery:
                     'league_name': league_name,
                     'is_career': is_career_query
                 }
+            
+            def needs_ai_for_comparison(self, query: str, parsed: Dict) -> bool:
+                """Check if this comparison query needs AI for a direct answer."""
+                if parsed.get('query_type') != 'comparison':
+                    return False
+                
+                query_lower = query.lower()
+                
+                # Questions asking "who had more/better/less" need direct answers
+                direct_comparison_patterns = [
+                    r'who\s+(had|has|have|hit|pitched|got|scored|stole)\s+(more|better|fewer|less)',
+                    r'which\s+(player|person|team)\s+(had|has|have|hit|pitched)\s+(more|better|fewer|less)',
+                    r'(more|better|fewer|less)\s+\w+\s*[,]?\s+\w+\s+or\s+\w+'
+                ]
+                
+                needs_direct_answer = any(re.search(pattern, query_lower) for pattern in direct_comparison_patterns)
+                
+                # Also check if there are 2+ player names (indicating a multi-player comparison)
+                # that would benefit from AI's ability to extract and compare multiple entities
+                has_multiple_players = len(parsed.get('all_player_names', [])) >= 2
+                
+                return needs_direct_answer and has_multiple_players
             
             def get_stat_display_name(self, api_name: str) -> str:
                 """Get human-readable stat name."""
@@ -265,6 +301,39 @@ class StreamlitMLBQuery:
                 return None, "Could not understand the query. Please try rephrasing."
         
         query_type = parsed['query_type']
+        
+        # Check if this comparison needs AI for a direct answer
+        if query_type == 'comparison' and self.parser.needs_ai_for_comparison(query_text, parsed):
+            if st.session_state.ai_handler and st.session_state.ai_handler.is_available():
+                st.info("🤖 This comparison question needs a direct answer. Using AI...")
+                
+                # Create progress placeholder
+                progress_container = st.empty()
+                
+                # Extract year
+                year_match = re.search(r'\b(20\d{2}|19\d{2})\b', query_text)
+                season = int(year_match.group(1)) if year_match else get_current_season()
+                
+                # Progress callback
+                def update_progress(step: str, detail: str):
+                    progress_container.info(f"**{step}:** {detail}")
+                
+                ai_result = st.session_state.ai_handler.handle_query_with_retry(query_text, season, report_progress=update_progress)
+                
+                # Clear progress, show steps
+                progress_container.empty()
+                
+                # Display processing steps
+                if ai_result.get('steps'):
+                    with st.expander("🔍 How AI Processed Your Question", expanded=False):
+                        for step in ai_result['steps']:
+                            st.write(step)
+                
+                if ai_result.get('success'):
+                    return ai_result, None
+                else:
+                    # If AI fails, fall through to standard comparison handler
+                    st.warning(f"AI comparison failed: {ai_result.get('error')}. Showing ranked list instead...")
         
         try:
             if query_type == 'team_rank':
