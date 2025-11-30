@@ -10,6 +10,8 @@ A comprehensive Python-based system for fetching, processing, and analyzing Majo
 - **Visualization**: Create insightful charts and graphs for statistical analysis
 - **Player Comparison**: Compare multiple players across various metrics
 - **Team Analysis**: Analyze team performance and trends
+- **Natural Language GUI**: Query MLB statistics using natural language questions
+- **Stats Leaders**: Find top 50 players in any statistical category
 
 ## Project Structure
 
@@ -38,6 +40,21 @@ pip install -r requirements.txt
 ```
 
 ## Usage
+
+### Natural Language Query GUI
+
+Launch the graphical interface to ask questions in plain English:
+
+```bash
+python run_gui.py
+```
+
+Example questions:
+- "Where did Gunnar Henderson rank in stolen bases in 2025?"
+- "Show me the top 10 ERA leaders in 2024"
+- "What was Aaron Judge's home run ranking in 2024?"
+
+See [GUI_GUIDE.md](GUI_GUIDE.md) for complete documentation.
 
 ### Fetching Data
 
