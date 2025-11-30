@@ -231,6 +231,43 @@ class MLBDataFetcher:
             "standingsTypes": "regularSeason"
         }
         return self._make_request(endpoint, params)
+    
+    def get_stats_leaders(self, stat_type: str, season: Optional[int] = None, 
+                         limit: int = 50, stat_group: str = "hitting") -> List[Dict]:
+        """
+        Get top players by a specific statistic.
+        
+        Args:
+            stat_type: Statistic to rank by (e.g., 'homeRuns', 'avg', 'era', 'strikeouts')
+            season: Season year (defaults to current year)
+            limit: Number of leaders to return (default 50)
+            stat_group: 'hitting' or 'pitching'
+            
+        Returns:
+            List of player dictionaries with stats
+            
+        Common hitting stats: homeRuns, rbi, avg, obp, slg, ops, stolenBases, hits, runs
+        Common pitching stats: wins, era, strikeouts, saves, whip, inningsPitched
+        """
+        if season is None:
+            season = datetime.now().year
+            
+        endpoint = "stats/leaders"
+        params = {
+            "leaderCategories": stat_type,
+            "season": season,
+            "sportId": 1,
+            "statGroup": stat_group,
+            "limit": limit
+        }
+        
+        data = self._make_request(endpoint, params)
+        
+        if data and "leagueLeaders" in data and len(data["leagueLeaders"]) > 0:
+            leaders = data["leagueLeaders"][0]
+            if "leaders" in leaders and len(leaders["leaders"]) > 0:
+                return leaders["leaders"]
+        return []
 
 
 if __name__ == "__main__":

@@ -312,6 +312,37 @@ class MLBDataProcessor:
             with open(filepath, 'w') as f:
                 json.dump(data, f, indent=2)
         print(f"Data exported to {filepath}")
+    
+    def extract_stats_leaders(self, leaders_data: List[Dict]) -> pd.DataFrame:
+        """
+        Extract and format stats leaders data into a DataFrame.
+        
+        Args:
+            leaders_data: List of leader dictionaries from API
+            
+        Returns:
+            DataFrame with player rankings and stats
+        """
+        if not leaders_data:
+            return pd.DataFrame()
+        
+        rows = []
+        for leader in leaders_data:
+            person = leader.get("person", {})
+            team = leader.get("team", {})
+            
+            row = {
+                "rank": leader.get("rank"),
+                "playerName": person.get("fullName"),
+                "playerId": person.get("id"),
+                "team": team.get("name", "N/A"),
+                "teamId": team.get("id"),
+                "value": leader.get("value")
+            }
+            rows.append(row)
+        
+        df = pd.DataFrame(rows)
+        return df
 
 
 if __name__ == "__main__":
