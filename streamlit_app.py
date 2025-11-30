@@ -122,6 +122,11 @@ class StreamlitMLBQuery:
                     league_id = LEAGUE_IDS["National League"]
                     league_name = "National League"
                 
+                # Check for comparison indicators early (needed for player name extraction)
+                comparison_words = ['more', 'better', 'worse', 'less', 'fewer']
+                has_comparison_word = any(word in query_lower for word in comparison_words)
+                has_or = ' or ' in query_lower
+                
                 # Extract player name
                 query_words = {'where', 'did', 'rank', 'what', 'was', 'show', 'me', 'the', 'top',
                                'who', 'are', 'in', 'for', 'find', 'leaders', 'ranking', 'get', 'era',
@@ -173,11 +178,7 @@ class StreamlitMLBQuery:
                 comparison_keywords = ['compare', 'versus', 'vs', 'vs.', 'against', 'better than', 'worse than']
                 has_comparison_keyword = any(keyword in query_lower for keyword in comparison_keywords)
                 
-                # Indirect comparison: "who had more X" or "which player has better Y"
-                comparison_words = ['more', 'better', 'worse', 'less', 'fewer']
-                has_comparison_word = any(word in query_lower for word in comparison_words)
-                has_or = ' or ' in query_lower
-                
+                # Indirect comparison already detected earlier (has_comparison_word and has_or)
                 # It's a comparison if: explicit keyword OR (comparison word + 'or')
                 is_comparison = has_comparison_keyword or (has_comparison_word and has_or)
                 
