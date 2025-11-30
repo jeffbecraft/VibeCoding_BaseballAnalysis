@@ -24,10 +24,18 @@ import re
 import time
 from typing import Dict, Any, Optional, Tuple
 import traceback
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.ai_code_cache import AICodeCache
+from src.logger import get_logger
+
+# Initialize logger
+logger = get_logger(__name__)
 
 
 class AIQueryHandler:
@@ -53,9 +61,11 @@ class AIQueryHandler:
         self.ai_available = False
         
         # Initialize code cache
-        self.code_cache = AICodeCache()
+        cache_ttl_days = int(os.getenv('AI_CACHE_TTL_DAYS', '30'))
+        self.code_cache = AICodeCache(ttl_days=cache_ttl_days)
         
-        # Auto-detect or use specified provider
+        # Auto-detect or use specified provider from env or parameter
+        provider = os.getenv('AI_PROVIDER', provider)
         if provider == "auto":
             # Try Ollama first (free, local)
             if self._init_ollama():
@@ -75,15 +85,16 @@ class AIQueryHandler:
             try:
                 ollama.list()
                 self.ollama = ollama
-                self.model = os.environ.get('OLLAMA_MODEL', 'llama3.2')
+                self.model = os.getenv('AI_MODEL', 'llama3.2')
                 self.provider = "ollama"
                 self.ai_available = True
-                print(f"[OK] Using Ollama (FREE) with model: {self.model}")
+                logger.info(f"Using Ollama (FREE) with model: {self.model}")
                 return True
             except Exception as e:
-                print(f"Ollama not running: {e}")
+                logger.warning(f"Ollama not running: {e}")
                 return False
         except ImportError:
+            logger.debug("Ollama package not installed")
             return False
     
     def _init_openai(self) -> bool:
@@ -94,16 +105,16 @@ class AIQueryHandler:
             if api_key:
                 self.openai = openai
                 self.openai.api_key = api_key
-                self.model = "gpt-4"
+                self.model = os.getenv('AI_MODEL', 'gpt-4')
                 self.provider = "openai"
                 self.ai_available = True
-                print(f"[OK] Using OpenAI with model: {self.model}")
+                logger.info(f"Using OpenAI with model: {self.model}")
                 return True
             else:
-                print("No OPENAI_API_KEY found")
+                logger.warning("No OPENAI_API_KEY found in environment")
                 return False
         except ImportError:
-            print("OpenAI package not installed")
+            logger.debug("OpenAI package not installed")
             return False
     
     def _get_api_key(self) -> Optional[str]:
@@ -749,7 +760,7 @@ Generate Python code to answer this question using the MLB API."""
             return generated_code
             
         except Exception as e:
-            print(f"Error generating code with AI: {e}")
+            logger.error(f"Error generating code with AI: {e}", exc_info=True)
             return ""
     
     def _validate_code_safety(self, code: str) -> Tuple[bool, str]:
@@ -972,7 +983,7 @@ Generate ONLY the corrected Python code, no explanations."""
             return generated_code
         
         except Exception as e:
-            print(f"Error generating code with feedback: {e}")
+            logger.error(f"Error generating code with feedback: {e}", exc_info=True)
             return ""
     
     def test_connection(self) -> Dict[str, Any]:

@@ -1,3 +1,9 @@
-# VibeCoding Baseball Analysis
+"""
+MLB Statistics Analysis System
+"""
 
-# Create __init__.py files to make modules importable
+__version__ = "1.0.0"
+__author__ = "Jeff Becraft"
+__email__ = "jeffbecraft@gmail.com"
+__description__ = "Comprehensive MLB statistics analysis system with AI-powered queries"
+__url__ = "https://github.com/jeffbecraft/VibeCoding_BaseballAnalysis"

@@ -1,7 +1,46 @@
 """
 Data Processor Module
 
-This module provides functionality to clean, transform, and process MLB statistics data.
+This module cleans, transforms, and processes raw MLB statistics data from the API.
+
+WHAT THIS MODULE DOES (Beginner Explanation):
+----------------------------------------------
+Think of MLB's API like a messy filing cabinet where statistics are buried in
+folders within folders. This module is like an assistant who finds the stats
+you need and presents them in a clean, organized table.
+
+KEY TRANSFORMATIONS:
+1. Extract nested data (API returns 3-4 levels deep, we flatten to 1 level)
+2. Rename fields to friendly names (baseOnBalls → walks)
+3. Convert data types (strings to numbers, dates to datetime objects)
+4. Calculate derived stats (OPS = OBP + SLG)
+5. Handle missing data gracefully (use 0 or .000 for missing stats)
+
+REAL-WORLD EXAMPLE:
+-------------------
+MLB API returns this nightmare:
+{
+  "stats": [{
+    "splits": [{
+      "stat": {
+        "homeRuns": 58,
+        "baseOnBalls": 133,
+        "avg": ".311"
+      }
+    }]
+  }]
+}
+
+We convert to this simple table:
+| homeRuns | walks | avg  |
+|----------|-------|------|
+| 58       | 133   | .311 |
+
+BENEFITS:
+- Easy to work with (pandas DataFrames)
+- Consistent format across all queries
+- Missing data handled automatically
+- Ready for visualization and analysis
 """
 
 import pandas as pd
@@ -11,34 +50,158 @@ import json
 
 
 class MLBDataProcessor:
-    """Processes and cleans MLB statistics data."""
+    """
+    Processes and cleans MLB statistics data from the API.
+    
+    MAIN RESPONSIBILITIES:
+    ----------------------
+    1. Extract statistics from nested API responses
+    2. Convert to pandas DataFrames for easy manipulation
+    3. Clean and normalize data (handle missing values, type conversions)
+    4. Aggregate multi-season data (career totals, averages)
+    5. Format data for display (round decimals, add units)
+    
+    TYPICAL WORKFLOW:
+    -----------------
+    Raw API Data → extract_batting_stats() → Clean DataFrame → Display
+    
+    Example:
+    ```python
+    processor = MLBDataProcessor()
+    
+    # Get raw data from API
+    raw_data = fetcher.get_player_stats(player_id, season)
+    
+    # Extract and clean batting stats
+    clean_df = processor.extract_batting_stats(raw_data)
+    
+    # Now you have a nice table:
+    #   season | gamesPlayed | atBats | hits | homeRuns | avg
+    #   2024   | 158         | 567    | 177  | 58       | .311
+    ```
+    
+    WHY PANDAS DATAFRAMES?
+    ----------------------
+    DataFrames are like Excel spreadsheets in Python:
+    - Easy sorting, filtering, grouping
+    - Built-in math operations
+    - Export to CSV, Excel, JSON
+    - Beautiful table displays
+    - Perfect for statistics!
+    """
     
     def __init__(self):
-        """Initialize the data processor."""
+        """
+        Initialize the data processor.
+        
+        NOTE: No configuration needed! The processor is stateless,
+        meaning it doesn't remember previous operations. Each method
+        is independent and can be called in any order.
+        """
         pass
     
     def extract_batting_stats(self, player_data: Dict) -> pd.DataFrame:
         """
-        Extract batting statistics from player data.
+        Extract batting statistics from complex API response into clean DataFrame.
         
         Args:
-            player_data: Player data dictionary from API
+            player_data: Raw player data dictionary from MLB API
+                        (Contains nested stats, splits, groups)
             
         Returns:
-            DataFrame with batting statistics
+            pandas DataFrame with one row per season, columns for each stat
+            Returns empty DataFrame if no batting data found
+        
+        HOW THIS WORKS (Step-by-Step):
+        --------------------------------
+        
+        STEP 1: Validate input data
+        - Check if player_data exists and has "stats" key
+        - If missing, return empty DataFrame (graceful failure)
+        
+        STEP 2: Navigate nested structure
+        API structure looks like:
+        player_data
+          └── stats [list]
+              └── [0] (first stat group)
+                  ├── group: {displayName: "hitting"}
+                  └── splits [list]
+                      └── [0] (first season)
+                          ├── season: "2024"
+                          └── stat: {homeRuns: 58, avg: ".311", ...}
+        
+        STEP 3: Extract relevant stats
+        For each season in splits:
+        - Get season year
+        - Extract 15+ batting stats
+        - Handle missing values (default to 0 or ".000")
+        
+        STEP 4: Build DataFrame
+        Convert list of dictionaries to pandas DataFrame
+        
+        EXAMPLE INPUT/OUTPUT:
+        ---------------------
+        Input (simplified):
+        {
+          "stats": [{
+            "group": {"displayName": "hitting"},
+            "splits": [
+              {
+                "season": "2024",
+                "stat": {
+                  "gamesPlayed": 158,
+                  "homeRuns": 58,
+                  "avg": ".311"
+                }
+              }
+            ]
+          }]
+        }
+        
+        Output:
+        | season | gamesPlayed | homeRuns | avg  |
+        |--------|-------------|----------|------|
+        | 2024   | 158         | 58       | .311 |
+        
+        BEGINNER TIP:
+        -------------
+        The .get() method with a default value prevents crashes:
+        stat.get("homeRuns", 0)  ← Returns 0 if "homeRuns" key missing
+        
+        This is safer than:
+        stat["homeRuns"]  ← Crashes with KeyError if missing!
         """
+        # STEP 1: Validate input - check if data exists and has stats
         if not player_data or "stats" not in player_data:
+            # No data or malformed data - return empty DataFrame
+            # (Caller will check: if not df.empty: ...)
             return pd.DataFrame()
         
+        # List to collect all season statistics
+        # Each dict in this list will become a row in the DataFrame
         stats_list = []
+        
+        # STEP 2: Loop through stat groups to find batting stats
         for stat_group in player_data.get("stats", []):
+            # Check if this is a batting stat group
+            # (API also returns pitching, fielding, etc.)
             if stat_group.get("group", {}).get("displayName") == "hitting":
+                
+                # STEP 3: Loop through each season (splits)
+                # "splits" contains one entry per season
                 for split in stat_group.get("splits", []):
+                    # Get the actual statistics dictionary for this season
                     stat = split.get("stat", {})
+                    
+                    # Get season year (e.g., "2024")
                     season = split.get("season", "Unknown")
                     
+                    # STEP 4: Extract all batting stats with safe defaults
+                    # Using .get(key, default) ensures we never crash on missing data
                     stats_list.append({
                         "season": season,
+                        
+                        # Counting stats (default to 0 if missing)
                         "gamesPlayed": stat.get("gamesPlayed", 0),
                         "atBats": stat.get("atBats", 0),
                         "runs": stat.get("runs", 0),
@@ -49,14 +212,26 @@ class MLBDataProcessor:
                         "rbi": stat.get("rbi", 0),
                         "stolenBases": stat.get("stolenBases", 0),
                         "caughtStealing": stat.get("caughtStealing", 0),
+                        
+                        # Note: MLB API uses "baseOnBalls" for walks
+                        # We rename to "walks" for clarity
                         "walks": stat.get("baseOnBalls", 0),
+                        
+                        # Note: MLB API uses "strikeOuts" (capital O)
+                        # We rename to "strikeouts" for consistency
                         "strikeouts": stat.get("strikeOuts", 0),
-                        "avg": stat.get("avg", ".000"),
-                        "obp": stat.get("obp", ".000"),
-                        "slg": stat.get("slg", ".000"),
-                        "ops": stat.get("ops", ".000")
+                        
+                        # Rate stats (default to ".000" string if missing)
+                        # These are stored as strings by MLB API (e.g., ".311" not 0.311)
+                        "avg": stat.get("avg", ".000"),     # Batting average
+                        "obp": stat.get("obp", ".000"),     # On-base percentage
+                        "slg": stat.get("slg", ".000"),     # Slugging percentage
+                        "ops": stat.get("ops", ".000")      # OPS (OBP + SLG)
                     })
         
+        # STEP 5: Convert list of dictionaries to DataFrame
+        # pandas automatically creates columns from dictionary keys
+        # and rows from each dictionary in the list
         return pd.DataFrame(stats_list)
     
     def extract_pitching_stats(self, player_data: Dict) -> pd.DataFrame:

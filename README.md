@@ -30,11 +30,15 @@ python -m streamlit run streamlit_app.py
 - **Player Comparison**: Compare multiple players across various metrics
 - **Team Analysis**: Analyze team performance and trends
 - **Natural Language GUI**: Query MLB statistics using natural language questions
+- **AI-Powered Queries**: Use FREE local AI (Ollama) or OpenAI for complex questions
+- **Smart Code Caching**: AI-generated code is cached for instant re-use (2-5s → 0.1s!)
+- **Retry Feature**: Easily regenerate AI answers with one click
 - **Web Application**: Browser-based interface for remote access and sharing
 - **Stats Leaders**: Find top 50 players in any statistical category
 - **Team & League Filtering**: Filter stats by specific teams or leagues (AL/NL)
 - **Caching System**: Smart caching to reduce API calls and improve performance
-- **Regression Testing**: Comprehensive test suite to ensure reliability
+- **Comprehensive Testing**: 54 automated tests including AI feature coverage
+- **CI/CD Pipeline**: GitHub Actions with automated testing and security scanning
 
 ## Project Structure
 
@@ -86,6 +90,66 @@ python -m streamlit run streamlit_app.py
 3. Deploy to cloud (FREE):
    - See [DEPLOY_NOW.md](DEPLOY_NOW.md) for quick start
    - See [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) for detailed instructions
+
+## Recent Enhancements (2025)
+
+### Industry Best Practices (November 30, 2025) ✨
+- **Structured Logging**: Professional logging with configurable levels (see `src/logger.py`)
+- **Environment Configuration**: Centralized `.env` configuration management
+- **Modern Packaging**: `pyproject.toml` (PEP 518) with optional dependencies
+- **Dependency Pinning**: `requirements.lock` for reproducible builds
+- **API Rate Limiting**: Automatic retry with exponential backoff (tenacity)
+- **Pre-commit Hooks**: Automated code quality checks (black, flake8, bandit)
+- **Health Monitoring**: System health status in Streamlit sidebar
+- **Auto-Versioning**: Automatic version increment on successful test runs (see below)
+
+See [Implementation Summary](docs/IMPLEMENTATION_SUMMARY.md) | [Best Practices Guide](docs/BEST_PRACTICES.md)
+
+### Automatic Version Management 🔄
+The project now automatically increments its version number when:
+1. Code is pushed to `master`/`main` branch
+2. Full regression test suite executes successfully
+3. Version format: `MAJOR.MINOR.PATCH` (e.g., `1.0.1` → `1.0.2`)
+
+**Benefits:**
+- Every commit has a unique version number
+- Version only increments if all tests pass
+- Git tags created automatically (e.g., `v1.0.2`)
+- CHANGELOG updated automatically
+- Version displayed in Streamlit UI sidebar
+
+See [Version Management Guide](docs/VERSION_MANAGEMENT.md) for details.
+
+### AI Query Improvements
+- **Fixed Comparison Logic**: AI now correctly compares values and matches them to player names
+  - Added Example 6 with critical comparison rules to AI prompt
+  - Eliminates contradictory answers (e.g., stating "Henderson had 38 SB" when data showed 30)
+- **Retry Feature**: One-click button to regenerate AI answers
+  - Clears cache and forces fresh AI generation
+  - Useful when answer seems incorrect or incomplete
+  - See [docs/retry_feature.md](docs/retry_feature.md) for details
+
+### User Experience
+- **Fixed Spinner Animation**: Loading indicator now stops immediately after query execution
+  - Previously continued during result display, preventing focus
+  - Now only shows during actual data fetching
+
+### Testing & Quality
+- **Enhanced CI/CD**: Moved AI feature tests to automated test suite
+  - 54 total tests (51 core + 3 AI features)
+  - All tests run automatically on push via GitHub Actions
+  - Pre-push hook prevents breaking changes
+
+### Documentation
+- **Architecture Guide**: Comprehensive beginner-friendly guide explaining how the system works
+  - See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+  - Covers data flow, caching strategy, security model, and more
+- **Verbose Code Comments**: All core modules now have detailed inline explanations
+  - Adapter pattern explained in streamlit_app.py
+  - Request flow documented in data_fetcher.py
+  - Cache system thoroughly documented in utils/ai_code_cache.py
+
+---
 
 ## Usage
 
@@ -212,11 +276,13 @@ See [TESTING_SUMMARY.md](TESTING_SUMMARY.md) for details on the test suite.
 
 ## Documentation
 
+- **[Architecture Guide](docs/ARCHITECTURE.md)**: **NEW!** Beginner-friendly system architecture guide
+- **[Retry Feature](docs/retry_feature.md)**: Guide to using the AI retry functionality
 - **[GUI Guide](GUI_GUIDE.md)**: Complete guide to the desktop GUI
 - **[Web App Summary](WEB_APP_SUMMARY.md)**: Overview of the web application
 - **[Deploy Now](DEPLOY_NOW.md)**: Quick deployment to Streamlit Cloud
 - **[Deployment Guide](DEPLOYMENT_GUIDE.md)**: Detailed deployment instructions
-- **[Testing Summary](TESTING_SUMMARY.md)**: Test suite documentation
+- **[Testing Summary](TESTING_SUMMARY.md)**: Test suite documentation (54 tests)
 - **[Team/League Filtering](TEAM_LEAGUE_FILTERING.md)**: Filtering documentation
 
 ## API Reference

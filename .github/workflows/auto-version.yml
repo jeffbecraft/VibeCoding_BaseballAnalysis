@@ -1,0 +1,112 @@
+name: Auto Version Bump
+
+on:
+  push:
+    branches: [ master, main ]
+    paths:
+      - 'src/**'
+      - 'utils/**'
+      - 'streamlit_app.py'
+      - 'requirements.txt'
+      - 'pyproject.toml'
+
+jobs:
+  test-and-version:
+    name: Test and Auto-increment Version
+    runs-on: ubuntu-latest
+    
+    # Only run on non-version-bump commits to avoid infinite loops
+    if: "!contains(github.event.head_commit.message, '[auto-version]')"
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        fetch-depth: 0
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-cov
+
+    - name: Run full regression test suite
+      id: tests
+      run: |
+        echo "Running full regression test suite..."
+        python run_tests.py
+        TEST_RESULT=$?
+        echo "test_result=$TEST_RESULT" >> $GITHUB_OUTPUT
+        exit $TEST_RESULT
+
+    - name: Bump version
+      if: steps.tests.outcome == 'success'
+      run: |
+        python scripts/bump_version.py
+
+    - name: Configure Git
+      if: steps.tests.outcome == 'success'
+      run: |
+        git config --local user.email "github-actions[bot]@users.noreply.github.com"
+        git config --local user.name "github-actions[bot]"
+
+    - name: Commit version bump
+      if: steps.tests.outcome == 'success'
+      run: |
+        # Get new version
+        NEW_VERSION=$(python -c "from src import __version__; print(__version__)")
+        
+        # Stage changes
+        git add src/__init__.py pyproject.toml CHANGELOG.md
+        
+        # Check if there are changes to commit
+        if git diff --staged --quiet; then
+          echo "No version changes to commit"
+        else
+          # Commit with special marker to prevent workflow loop
+          git commit -m "chore: bump version to $NEW_VERSION [auto-version]"
+          
+          # Push changes
+          git push
+          
+          echo "✓ Version bumped to $NEW_VERSION and pushed to repository"
+        fi
+
+    - name: Create version tag
+      if: steps.tests.outcome == 'success'
+      run: |
+        NEW_VERSION=$(python -c "from src import __version__; print(__version__)")
+        
+        # Create annotated tag
+        git tag -a "v$NEW_VERSION" -m "Auto-generated version v$NEW_VERSION"
+        
+        # Push tag
+        git push origin "v$NEW_VERSION"
+        
+        echo "✓ Created and pushed tag v$NEW_VERSION"
+
+    - name: Generate test report
+      if: always()
+      run: |
+        echo "## Test Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        if [ "${{ steps.tests.outcome }}" == "success" ]; then
+          NEW_VERSION=$(python -c "from src import __version__; print(__version__)")
+          echo "✅ All tests passed!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version bumped to:** \`$NEW_VERSION\`" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ Tests failed - version not incremented" >> $GITHUB_STEP_SUMMARY
+        fi
+
+    - name: Notify on failure
+      if: steps.tests.outcome == 'failure'
+      run: |
+        echo "::warning::Regression tests failed - version was not incremented"

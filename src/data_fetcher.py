@@ -11,61 +11,231 @@ import os
 from typing import Dict, List, Optional, Union
 from datetime import datetime
 import time
+from dotenv import load_dotenv
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
-# Add parent directory to path to import cache
+# Load environment variables
+load_dotenv()
+
+# Add parent directory to path to import cache and logger
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from utils.cache import MLBCache
+from src.logger import get_logger
+
+# Initialize logger
+logger = get_logger(__name__)
 
 
 class MLBDataFetcher:
-    """Fetches data from the MLB Stats API."""
+    """
+    Fetches data from the MLB Stats API with intelligent caching.
     
-    BASE_URL = "https://statsapi.mlb.com/api/v1"
+    WHAT THIS CLASS DOES (Beginner Explanation):
+    ---------------------------------------------
+    Imagine you're asking a librarian for books. Instead of walking to the
+    shelf every time, the librarian keeps recently-requested books at the
+    desk for quick access. That's what this class does with MLB statistics!
+    
+    KEY RESPONSIBILITIES:
+    1. Talk to MLB's official API (statsapi.mlb.com)
+    2. Cache responses to avoid unnecessary API calls
+    3. Provide simple methods to get player/team/league data
+    
+    CACHING BENEFITS:
+    - Faster responses (0.1s cached vs 1-2s API call)
+    - Works offline if you've queried before
+    - Reduces load on MLB's servers
+    - Saves bandwidth
+    
+    USAGE EXAMPLE:
+    ```python
+    fetcher = MLBDataFetcher()
+    
+    # First call: hits MLB API, takes 1-2 seconds
+    teams = fetcher.get_teams(2024)
+    
+    # Second call: uses cache, takes 0.1 seconds!
+    teams = fetcher.get_teams(2024)
+    ```
+    """
+    
+    # MLB's official statistics API base URL
+    # All endpoints build on this (e.g., /api/v1/teams, /api/v1/people, etc.)
+    # Can be overridden via MLB_API_BASE_URL environment variable
+    BASE_URL = os.getenv('MLB_API_BASE_URL', 'https://statsapi.mlb.com/api/v1')
     
     def __init__(self, use_cache: bool = True, cache_ttl_hours: int = 24):
         """
         Initialize the MLB Data Fetcher.
         
         Args:
-            use_cache: Whether to use caching (default True)
-            cache_ttl_hours: Cache time-to-live in hours (default 24)
+            use_cache: Enable caching system (default: True, highly recommended!)
+            cache_ttl_hours: How long to keep cached data (default: 24 hours)
+                           - Current season: 24 hours (stats change daily)
+                           - Past seasons: Forever (stats never change)
+        
+        BEGINNER TIP:
+        -------------
+        Always keep use_cache=True unless you're debugging and need fresh data
+        every single time. The cache is smart enough to know when to refresh!
+        
+        HOW TTL WORKS:
+        - You query "Aaron Judge 2024 stats" at 2pm
+        - Data gets cached with timestamp
+        - You query same thing at 3pm → Uses cache (within 24 hours)
+        - You query same thing tomorrow at 3pm → Fetches fresh (past 24 hours)
+        
+        MEMORY USAGE:
+        Each cached response is ~1-50KB depending on complexity
+        100 queries ≈ 1-5MB of cached data (very lightweight!)
         """
+        # Create a persistent connection session for better performance
+        # (Reusing TCP connections is faster than creating new ones each time)
         self.session = requests.Session()
+        # Store cache preference
         self.use_cache = use_cache
+        
+        # Initialize cache system if enabled
+        # (If disabled, self.cache stays None and all methods skip cache checks)
         self.cache = MLBCache(ttl_hours=cache_ttl_hours) if use_cache else None
         
+        # Get timeout from environment variable
+        self.timeout = int(os.getenv('API_TIMEOUT_SECONDS', '10'))
+        
+        cache_status = 'enabled' if use_cache else 'disabled'
+        logger.info(f"MLBDataFetcher initialized (cache={cache_status}, ttl={cache_ttl_hours}h, timeout={self.timeout}s)")
+    
     def _make_request(self, endpoint: str, params: Optional[Dict] = None) -> Dict:
         """
-        Make a request to the MLB Stats API with caching support.
+        Make a request to the MLB Stats API with intelligent caching.
+        
+        This is the "brain" of the fetcher - all other methods call this internally.
         
         Args:
-            endpoint: API endpoint path
-            params: Query parameters
+            endpoint: API path (e.g., "people/592450" for Aaron Judge)
+            params: Query parameters (e.g., {"season": 2024, "hydrate": "stats"})
             
         Returns:
-            JSON response as dictionary
+            Dictionary containing the API response data
+        
+        HOW IT WORKS (Step-by-Step):
+        ------------------------------
+        1. Check if we have this exact request cached
+           - Endpoint + params create a unique cache key
+           - Example: "people/592450?season=2024" is one cache entry
+           
+        2. If cached AND not expired:
+           - Return cached data instantly (0.1 seconds)
+           - Skip API call entirely
+           
+        3. If NOT cached OR expired:
+           - Make HTTP GET request to MLB API
+           - Wait for response (usually 1-2 seconds)
+           - Parse JSON response
+           - Save to cache for next time
+           - Return data
+        
+        ERROR HANDLING:
+        - Network timeout (> 10 seconds) → Return empty dict {}
+        - HTTP error (404, 500, etc.) → Return empty dict {}
+        - Invalid JSON response → Return empty dict {}
+        
+        EXAMPLE REQUEST:
+        ```python
+        _make_request(
+            endpoint="people/592450",
+            params={"hydrate": "stats(type=season)"}
+        )
+        
+        # Full URL built:
+        # https://statsapi.mlb.com/api/v1/people/592450?hydrate=stats(type=season)
+        ```
         """
-        # Check cache first
+        # STEP 1: Check cache first (always check cache before network!)
         if self.use_cache and self.cache:
             cached_data = self.cache.get(endpoint, params)
             if cached_data is not None:
+                # Cache hit! Return immediately without API call
+                # (This is 10-20x faster than making the request)
+                logger.debug(f"Cache HIT: {endpoint}")
                 return cached_data
+            logger.debug(f"Cache MISS: {endpoint}")
         
-        # Make API request
+        # STEP 2: Cache miss - need to make actual API request
+        # Build full URL by combining base URL + endpoint
         url = f"{self.BASE_URL}/{endpoint}"
+        
+        # Use retry decorator for resilience
+        return self._make_api_request_with_retry(url, endpoint, params)
+    
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=1, max=10),
+        retry=retry_if_exception_type((requests.exceptions.Timeout, requests.exceptions.ConnectionError)),
+        reraise=True
+    )
+    def _make_api_request_with_retry(self, url: str, endpoint: str, params: Optional[Dict] = None) -> Dict:
+        """
+        Make API request with automatic retry logic for transient failures.
+        
+        This method is wrapped with tenacity retry decorator to handle:
+        - Network timeouts (retry up to 3 times)
+        - Connection errors (retry with exponential backoff)
+        - Transient server errors
+        
+        Args:
+            url: Full API URL
+            endpoint: API endpoint (for caching)
+            params: Query parameters
+            
+        Returns:
+            Parsed JSON response
+            
+        Raises:
+            RequestException: After all retries exhausted
+        """
         try:
-            response = self.session.get(url, params=params, timeout=10)
+            logger.info(f"API Request: {endpoint}")
+            start_time = time.time()
+            
+            # Make GET request to MLB API
+            # - timeout: Configurable via environment (default 10 seconds)
+            # - params: Automatically URL-encodes parameters
+            response = self.session.get(url, params=params, timeout=self.timeout)
+            
+            # Raise exception if HTTP error occurred (404, 500, etc.)
             response.raise_for_status()
+            
+            # Parse JSON response into Python dictionary
             data = response.json()
             
-            # Store in cache
+            elapsed = time.time() - start_time
+            logger.info(f"API Response: {endpoint} ({elapsed:.2f}s)")
+            
+            # STEP 3: Store successful response in cache for next time
             if self.use_cache and self.cache:
                 self.cache.set(endpoint, params, data)
+                logger.debug(f"Cached response for: {endpoint}")
             
+            # Return the data to caller
             return data
             
+        except requests.exceptions.Timeout as e:
+            # Timeout - will be retried by decorator
+            logger.warning(f"Request timeout for {url}: {e}")
+            raise
+            
+        except requests.exceptions.ConnectionError as e:
+            # Connection error - will be retried by decorator
+            logger.warning(f"Connection error for {url}: {e}")
+            raise
+            
         except requests.exceptions.RequestException as e:
-            print(f"Error fetching data from {url}: {e}")
+            # Other errors (404, 500, etc.) - log and return empty dict
+            logger.error(f"Error fetching data from {url}: {e}", exc_info=True)
+            
+            # Return empty dict so caller can handle gracefully
+            # (Callers always check: if data and "people" in data: ...)
             return {}
         
     def clear_cache(self):
@@ -643,20 +813,22 @@ class MLBDataFetcher:
 
 
 if __name__ == "__main__":
-
-    # Example usage
+    # Example usage with logging
+    import logging
+    logging.basicConfig(level=logging.INFO)
+    
     fetcher = MLBDataFetcher()
     
     # Get teams
-    print("Fetching MLB teams...")
+    logger.info("Fetching MLB teams...")
     teams = fetcher.get_teams(2024)
     if teams:
-        print(f"Found {len(teams)} teams")
-        print(f"Example: {teams[0].get('name', 'Unknown')}")
+        logger.info(f"Found {len(teams)} teams")
+        logger.info(f"Example: {teams[0].get('name', 'Unknown')}")
     
     # Search for a player
-    print("\nSearching for Aaron Judge...")
+    logger.info("Searching for Aaron Judge...")
     players = fetcher.search_players("Aaron Judge")
     if players:
         player = players[0]
-        print(f"Found: {player.get('fullName')} (ID: {player.get('id')})")
+        logger.info(f"Found: {player.get('fullName')} (ID: {player.get('id')})")

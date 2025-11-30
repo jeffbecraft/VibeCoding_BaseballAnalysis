@@ -6,6 +6,10 @@ Streamlit-based web interface for querying MLB statistics using natural language
 import streamlit as st
 import sys
 import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Add src and utils directories to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
@@ -16,8 +20,18 @@ from data_processor import MLBDataProcessor
 from helpers import get_team_name, get_current_season, TEAM_IDS, LEAGUE_IDS
 from mlb_gui import MLBQueryGUI
 from ai_query_handler import AIQueryHandler
+from logger import get_logger
 import re
 from typing import Optional, Dict
+
+# Import version info
+try:
+    from src import __version__
+except ImportError:
+    __version__ = "1.0.0"
+
+# Initialize logger
+logger = get_logger(__name__)
 
 # Page configuration
 st.set_page_config(
@@ -58,20 +72,135 @@ if 'fetcher' not in st.session_state:
         st.session_state.processor
     )
 
+def get_health_status() -> Dict:
+    """
+    Get system health status for monitoring.
+    
+    Returns health check information including:
+    - Overall status (healthy, degraded, unhealthy)
+    - Cache statistics
+    - AI availability
+    - Version information
+    
+    This is useful for:
+    - Container orchestration (K8s, Docker)
+    - Monitoring dashboards
+    - Automated health checks
+    """
+    health = {
+        'status': 'healthy',
+        'cache': {
+            'enabled': st.session_state.fetcher.use_cache,
+            'stats': {}
+        },
+        'ai': {
+            'available': st.session_state.ai_handler.is_available(),
+            'provider': None
+        },
+        'version': '1.0.0',
+        'environment': os.getenv('ENVIRONMENT', 'production')
+    }
+    
+    # Get cache statistics
+    if st.session_state.fetcher.use_cache:
+        try:
+            health['cache']['stats'] = st.session_state.fetcher.get_cache_stats()
+        except Exception as e:
+            logger.warning(f"Could not get cache stats: {e}")
+            health['status'] = 'degraded'
+    
+    # Get AI provider info
+    if health['ai']['available']:
+        try:
+            provider_info = st.session_state.ai_handler.get_provider_info()
+            health['ai']['provider'] = provider_info.get('provider')
+            health['ai']['model'] = provider_info.get('model')
+        except Exception as e:
+            logger.warning(f"Could not get AI provider info: {e}")
+    else:
+        health['status'] = 'degraded'  # AI not available
+    
+    return health
+
 # Helper class to adapt GUI logic for Streamlit
 class StreamlitMLBQuery:
-    """Adapter class to use MLBQueryGUI parsing logic with Streamlit."""
+    """
+    Adapter class to bridge Desktop GUI parsing logic with Streamlit Web App.
+    
+    WHY THIS EXISTS (Beginner Explanation):
+    -------------------------------------------
+    We have two interfaces:
+    1. Desktop app (mlb_gui.py) - has excellent query parsing
+    2. Web app (this file) - needs the same parsing
+    
+    Instead of copying all the parsing code, we "adapt" the Desktop GUI's
+    parser to work in the web environment. This is called the "Adapter Pattern"
+    and it helps us avoid duplicating 500+ lines of code!
+    
+    WHAT IT DOES:
+    - Creates a lightweight "parser" that has all the query parsing logic
+    - Shares the same stat mappings (home runs → homeRuns API name)
+    - Reuses the same validation and extraction methods
+    
+    BENEFITS:
+    - Only maintain query parsing logic in ONE place
+    - Bug fixes automatically work in both interfaces
+    - Consistent behavior between desktop and web apps
+    """
     
     def __init__(self):
+        """
+        Initialize the Streamlit query adapter.
+        
+        PROCESS:
+        1. Create a parser object (has query parsing methods)
+        2. Link to the MLB data fetcher (gets data from API)
+        3. Link to the processor (formats the data nicely)
+        """
         # Create a dummy GUI instance just to access its parsing methods
+        # (We don't actually show a GUI, we just borrow its brain!)
         self.parser = self._create_parser()
+        
+        # Use the same fetcher and processor from session state
+        # (This ensures caching works across queries)
         self.fetcher = st.session_state.fetcher
         self.processor = st.session_state.processor
     
     def _create_parser(self):
-        """Create parser instance without initializing GUI."""
+        """
+        Create parser instance without initializing full GUI.
+        
+        WHAT THIS DOES (Beginner Explanation):
+        ---------------------------------------
+        Imagine you have a Swiss Army knife (MLBQueryGUI) with 20 tools,
+        but you only need the scissors. Instead of carrying the whole knife,
+        we extract just the scissors (parsing methods) into a smaller tool.
+        
+        HOW IT WORKS:
+        1. Create a lightweight "Parser" class
+        2. Copy over the stat mappings dictionary
+           (e.g., {"home runs": "homeRuns", "hr": "homeRuns"})
+        3. Copy over the pitching stats list
+           (so we know when to fetch pitching vs batting data)
+        4. Include the main parsing method (parse_query)
+        
+        RETURNS:
+        A Parser object with just the query parsing capabilities,
+        no GUI components like buttons or text boxes.
+        
+        EXAMPLE:
+        parser.parse_query("Aaron Judge home runs 2024")
+        → Returns: {type: "player_stat", player: "Aaron Judge", 
+                    stat: "homeRuns", year: 2024}
+        """
         class Parser:
+            # Copy stat mappings from the full GUI class
+            # This dictionary translates common terms to API field names
+            # Example: "home runs" → "homeRuns" (what the MLB API expects)
             STAT_MAPPINGS = MLBQueryGUI.STAT_MAPPINGS
+            
+            # Copy pitching stats list so we know when to request pitching data
+            # Example: "era" is in PITCHING_STATS, so use stat_group="pitching"
             PITCHING_STATS = MLBQueryGUI.PITCHING_STATS
             
             def parse_query(self, query: str) -> Optional[Dict]:
@@ -696,6 +825,13 @@ st.markdown("Ask questions about MLB statistics in natural language!")
 # Sidebar
 with st.sidebar:
     st.header("ℹ️ How to Use")
+    
+    # Version information
+    st.caption(f"⚾ MLB Stats Analysis v{__version__}")
+    environment = os.getenv('ENVIRONMENT', 'production')
+    if environment != 'production':
+        st.caption(f"Environment: {environment}")
+    
     st.markdown("""
     **Ask questions like:**
     - "Top 10 home runs in 2024"
@@ -722,6 +858,33 @@ with st.sidebar:
     - Use "compare", "vs", or "versus" to see ranked results
     - Both players/teams shown in context of league leaders
     """)
+    
+    st.divider()
+    
+    # System Health Check
+    st.header("🏥 System Health")
+    
+    health_status = get_health_status()
+    
+    # Overall status
+    if health_status['status'] == 'healthy':
+        st.success("✅ All systems operational")
+    elif health_status['status'] == 'degraded':
+        st.warning("⚠️ Some features unavailable")
+    else:
+        st.error("❌ System issues detected")
+    
+    # Cache stats
+    if health_status['cache']['enabled']:
+        cache_stats = health_status['cache']['stats']
+        st.metric("Cache Hit Rate", f"{cache_stats.get('hit_rate', 0):.1f}%")
+        st.caption(f"Total requests: {cache_stats.get('total_requests', 0)}")
+    
+    # AI status
+    if health_status['ai']['available']:
+        st.caption(f"✓ AI: {health_status['ai']['provider']}")
+    else:
+        st.caption("✗ AI: Not available")
     
     st.divider()
     
@@ -820,7 +983,7 @@ with st.sidebar:
         for i, hist_query in enumerate(reversed(st.session_state.history[-5:])):
             if st.button(f"🔄 {hist_query}", key=f"hist_{i}"):
                 st.session_state.current_query = hist_query
-
+    
 # Main query input
 query = st.text_input(
     "Enter your question:",

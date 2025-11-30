@@ -1,0 +1,204 @@
+[build-system]
+requires = ["setuptools>=65.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mlb-stats-analysis"
+version = "1.0.0"
+description = "Comprehensive MLB statistics analysis system with AI-powered queries"
+authors = [{name = "Jeff Becraft", email = "jeffbecraft@gmail.com"}]
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+keywords = ["mlb", "baseball", "statistics", "analytics", "ai", "streamlit"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+dependencies = [
+    "pandas>=2.0.0,<3.0.0",
+    "numpy>=1.24.0,<2.0.0",
+    "requests>=2.31.0,<3.0.0",
+    "python-dotenv>=1.0.0,<2.0.0",
+    "tenacity>=8.2.0,<9.0.0",  # For retry logic
+    "matplotlib>=3.7.0,<4.0.0",
+    "seaborn>=0.12.0,<1.0.0",
+    "scipy>=1.10.0,<2.0.0",
+    "statsmodels>=0.14.0,<1.0.0",
+]
+
+[project.optional-dependencies]
+# Development dependencies
+dev = [
+    "pytest>=7.4.0,<8.0.0",
+    "pytest-cov>=4.1.0,<5.0.0",
+    "black>=23.0.0,<24.0.0",
+    "flake8>=6.0.0,<7.0.0",
+    "mypy>=1.5.0,<2.0.0",
+    "pylint>=3.0.0,<4.0.0",
+    "bandit>=1.7.0,<2.0.0",
+    "safety>=2.3.0,<3.0.0",
+    "pre-commit>=3.5.0,<4.0.0",
+]
+
+# Web application dependencies
+web = [
+    "streamlit>=1.28.0,<2.0.0",
+    "plotly>=5.17.0,<6.0.0",
+]
+
+# Jupyter notebook dependencies
+notebooks = [
+    "jupyter>=1.0.0,<2.0.0",
+    "ipykernel>=6.25.0,<7.0.0",
+    "notebook>=7.0.0,<8.0.0",
+]
+
+# AI dependencies
+ai = [
+    "openai>=1.3.0,<2.0.0",  # Optional - for OpenAI provider
+]
+
+# All optional dependencies combined
+all = [
+    "mlb-stats-analysis[dev,web,notebooks,ai]",
+]
+
+[project.urls]
+Homepage = "https://github.com/jeffbecraft/VibeCoding_BaseballAnalysis"
+Repository = "https://github.com/jeffbecraft/VibeCoding_BaseballAnalysis"
+Documentation = "https://github.com/jeffbecraft/VibeCoding_BaseballAnalysis/blob/master/README.md"
+"Bug Tracker" = "https://github.com/jeffbecraft/VibeCoding_BaseballAnalysis/issues"
+
+[project.scripts]
+mlb-gui = "run_gui:main"
+mlb-test = "run_tests:main"
+
+# ===========================
+# Tool Configurations
+# ===========================
+
+[tool.black]
+line-length = 100
+target-version = ['py39', 'py310', 'py311']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+    \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+  | data
+)/
+'''
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+addopts = [
+    "--verbose",
+    "--cov=src",
+    "--cov=utils",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+    "--cov-report=xml",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "ai: marks tests that require AI provider",
+]
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false  # Set to true for strict mode
+disallow_incomplete_defs = false  # Set to true for strict mode
+check_untyped_defs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_optional = true
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "pandas.*",
+    "numpy.*",
+    "matplotlib.*",
+    "seaborn.*",
+    "scipy.*",
+    "statsmodels.*",
+]
+ignore_missing_imports = true
+
+[tool.flake8]
+max-line-length = 100
+extend-ignore = ["E203", "W503"]
+exclude = [
+    ".git",
+    "__pycache__",
+    ".venv",
+    "venv",
+    "build",
+    "dist",
+    "*.egg-info",
+    ".pytest_cache",
+    ".mypy_cache",
+    "data",
+]
+
+[tool.pylint.messages_control]
+disable = [
+    "C0103",  # Invalid name
+    "C0114",  # Missing module docstring
+    "R0913",  # Too many arguments
+    "R0914",  # Too many local variables
+]
+
+[tool.pylint.format]
+max-line-length = 100
+
+[tool.bandit]
+exclude_dirs = ["tests", "data", ".venv", "venv"]
+skips = ["B101", "B601"]  # Skip assert_used and shell_injection for specific cases
+
+[tool.coverage.run]
+source = ["src", "utils"]
+omit = [
+    "*/tests/*",
+    "*/__pycache__/*",
+    "*/venv/*",
+    "*/.venv/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
