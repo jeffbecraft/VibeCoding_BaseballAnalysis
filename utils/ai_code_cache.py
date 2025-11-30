@@ -268,3 +268,29 @@ class AICodeCache:
                 print(f"Error removing cache file {file}: {e}")
         
         return count
+    
+    def remove(self, cache_key: str) -> bool:
+        """
+        Remove a specific cached query by its cache key.
+        
+        Args:
+            cache_key: The cache key (hash) to remove
+            
+        Returns:
+            True if removed, False if not found
+        """
+        if not os.path.exists(self.cache_dir):
+            return False
+        
+        cache_file = os.path.join(self.cache_dir, f"{cache_key}.code")
+        
+        if os.path.exists(cache_file):
+            try:
+                os.remove(cache_file)
+                return True
+            except Exception as e:
+                print(f"Error removing cache file {cache_key}: {e}")
+                return False
+        
+        return False
+
