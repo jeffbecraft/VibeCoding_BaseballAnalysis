@@ -30,7 +30,8 @@ from typing import Optional, Dict
 try:
     from src import __version__
 except ImportError:
-    __version__ = "1.0.0"
+    # Fallback to current version if import fails
+    __version__ = "1.1.0"
 
 # Initialize monitoring (optional - requires sentry-sdk)
 try:
