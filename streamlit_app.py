@@ -30,8 +30,23 @@ try:
 except ImportError:
     __version__ = "1.0.0"
 
-# Initialize logger
-logger = get_logger(__name__)
+# Initialize monitoring (optional - requires sentry-sdk)
+try:
+    from src.monitoring import init_monitoring, capture_exception, add_breadcrumb
+    MONITORING_ENABLED = init_monitoring()
+    if MONITORING_ENABLED:
+        logger = get_logger(__name__)
+        logger.info("Production monitoring enabled (Sentry)")
+    else:
+        logger = get_logger(__name__)
+        logger.info("Monitoring not configured (optional)")
+except ImportError:
+    logger = get_logger(__name__)
+    logger.info("Monitoring module not available (install: pip install sentry-sdk)")
+    MONITORING_ENABLED = False
+    # Define no-op functions if monitoring not available
+    def capture_exception(e, context=None): pass
+    def add_breadcrumb(message, category='default', level='info', data=None): pass
 
 # Page configuration
 st.set_page_config(
@@ -393,6 +408,14 @@ class StreamlitMLBQuery:
     
     def execute_query(self, query_text: str):
         """Execute a natural language query and return results."""
+        # Add breadcrumb for monitoring
+        add_breadcrumb(
+            message=f"Executing query: {query_text[:100]}",
+            category='query',
+            level='info',
+            data={'query_length': len(query_text)}
+        )
+        
         parsed = self.parser.parse_query(query_text)
         
         if not parsed:
@@ -481,6 +504,13 @@ class StreamlitMLBQuery:
             else:  # leaders
                 return self._handle_leaders(parsed)
         except Exception as e:
+            # Capture exception for monitoring
+            capture_exception(e, context={
+                'query_text': query_text,
+                'query_type': query_type if 'query_type' in locals() else 'unknown',
+                'parsed': parsed if 'parsed' in locals() else None
+            })
+            
             # If standard query fails, try AI fallback
             if st.session_state.ai_handler and st.session_state.ai_handler.is_available():
                 st.warning(f"⚠️ Standard query failed: {str(e)}")
