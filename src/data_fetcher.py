@@ -6,9 +6,15 @@ This module provides functionality to fetch MLB statistics from the MLB Stats AP
 
 import requests
 import json
+import sys
+import os
 from typing import Dict, List, Optional, Union
 from datetime import datetime
 import time
+
+# Add parent directory to path to import cache
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from utils.cache import MLBCache
 
 
 class MLBDataFetcher:
@@ -16,13 +22,21 @@ class MLBDataFetcher:
     
     BASE_URL = "https://statsapi.mlb.com/api/v1"
     
-    def __init__(self):
-        """Initialize the MLB Data Fetcher."""
+    def __init__(self, use_cache: bool = True, cache_ttl_hours: int = 24):
+        """
+        Initialize the MLB Data Fetcher.
+        
+        Args:
+            use_cache: Whether to use caching (default True)
+            cache_ttl_hours: Cache time-to-live in hours (default 24)
+        """
         self.session = requests.Session()
+        self.use_cache = use_cache
+        self.cache = MLBCache(ttl_hours=cache_ttl_hours) if use_cache else None
         
     def _make_request(self, endpoint: str, params: Optional[Dict] = None) -> Dict:
         """
-        Make a request to the MLB Stats API.
+        Make a request to the MLB Stats API with caching support.
         
         Args:
             endpoint: API endpoint path
@@ -31,16 +45,40 @@ class MLBDataFetcher:
         Returns:
             JSON response as dictionary
         """
+        # Check cache first
+        if self.use_cache and self.cache:
+            cached_data = self.cache.get(endpoint, params)
+            if cached_data is not None:
+                return cached_data
+        
+        # Make API request
         url = f"{self.BASE_URL}/{endpoint}"
         try:
             response = self.session.get(url, params=params, timeout=10)
             response.raise_for_status()
-            return response.json()
+            data = response.json()
+            
+            # Store in cache
+            if self.use_cache and self.cache:
+                self.cache.set(endpoint, params, data)
+            
+            return data
             
         except requests.exceptions.RequestException as e:
             print(f"Error fetching data from {url}: {e}")
             return {}
         
+    def clear_cache(self):
+        """Clear all cached data."""
+        if self.cache:
+            self.cache.clear()
+    
+    def get_cache_stats(self) -> Dict:
+        """Get cache statistics."""
+        if self.cache:
+            return self.cache.get_cache_stats()
+        return {'error': 'Caching not enabled'}
+    
     def get_player_stats(self, player_id: int, season: int, 
                         stat_group: str = "hitting") -> Dict:
         """

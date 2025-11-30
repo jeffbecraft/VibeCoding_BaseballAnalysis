@@ -57,7 +57,7 @@ class MLBQueryGUI:
     }
     
     # Stats that are pitching-related
-    PITCHING_STATS = {'era', 'wins', 'saves', 'whip', 'inningsPitched'}
+    PITCHING_STATS = {'era', 'wins', 'saves', 'whip', 'inningsPitched', 'strikeouts'}
     
     def __init__(self, root):
         """Initialize the GUI application."""
@@ -165,6 +165,28 @@ class MLBQueryGUI:
             pady=5
         ).pack(side="left", padx=5)
         
+        tk.Button(
+            button_frame,
+            text="Cache Stats",
+            command=self.show_cache_stats,
+            bg="#2196F3",
+            fg="white",
+            font=("Arial", 11, "bold"),
+            padx=20,
+            pady=5
+        ).pack(side="left", padx=5)
+        
+        tk.Button(
+            button_frame,
+            text="Clear Cache",
+            command=self.clear_cache,
+            bg="#FF9800",
+            fg="white",
+            font=("Arial", 11, "bold"),
+            padx=20,
+            pady=5
+        ).pack(side="left", padx=5)
+        
         # Results area
         results_frame = tk.LabelFrame(
             self.root,
@@ -251,7 +273,8 @@ class MLBQueryGUI:
         # Remove query words first
         query_words = {'where', 'did', 'rank', 'what', 'was', 'show', 'me', 'the', 'top',
                        'who', 'are', 'in', 'for', 'find', 'leaders', 'ranking', 'get', 'era',
-                       'rbi', 'mlb', 'season', 'year', 'player', 'players', 'stats', 'statistics'}
+                       'rbi', 'mlb', 'season', 'year', 'player', 'players', 'stats', 'statistics',
+                       'which', 'when', 'how', 'had', 'has', 'have'}
         
         # Words to exclude from player name matching
         exclude_words = query_words.copy()
@@ -704,6 +727,39 @@ class MLBQueryGUI:
         self.query_entry.delete(0, tk.END)
         self.results_text.delete(1.0, tk.END)
         self.status_var.set("Ready")
+    
+    def show_cache_stats(self):
+        """Display cache statistics."""
+        stats = self.fetcher.get_cache_stats()
+        
+        self.results_text.delete(1.0, tk.END)
+        self.results_text.insert(tk.END, "📦 Cache Statistics:\n")
+        self.results_text.insert(tk.END, "=" * 60 + "\n\n")
+        
+        if 'error' in stats:
+            self.results_text.insert(tk.END, f"❌ {stats['error']}\n")
+        else:
+            self.results_text.insert(tk.END, f"Cache Directory: {stats.get('cache_dir', 'N/A')}\n")
+            self.results_text.insert(tk.END, f"Total Entries: {stats.get('total_entries', 0)}\n")
+            self.results_text.insert(tk.END, f"Valid Entries: {stats.get('valid_entries', 0)}\n")
+            self.results_text.insert(tk.END, f"Expired Entries: {stats.get('expired_entries', 0)}\n")
+            self.results_text.insert(tk.END, f"Total Size: {stats.get('total_size_mb', 0)} MB\n")
+            self.results_text.insert(tk.END, "\n💡 Cached data speeds up queries by avoiding API calls.\n")
+            self.results_text.insert(tk.END, "Cache entries expire after 24 hours by default.\n")
+        
+        self.status_var.set("Cache stats displayed")
+    
+    def clear_cache(self):
+        """Clear the cache after confirmation."""
+        result = messagebox.askyesno(
+            "Clear Cache",
+            "Are you sure you want to clear all cached data?\n\nThis will remove all stored API responses."
+        )
+        
+        if result:
+            self.fetcher.clear_cache()
+            messagebox.showinfo("Cache Cleared", "All cached data has been removed.")
+            self.status_var.set("Cache cleared")
 
 
 def main():
