@@ -61,6 +61,10 @@ Thumbs.db
 .env.*.local
 !.env.example
 
+# Streamlit secrets (never commit real secrets!)
+.streamlit/secrets.toml
+!.streamlit/secrets.toml.example
+
 # Logs
 *.log
 logs/
