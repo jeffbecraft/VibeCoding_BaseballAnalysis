@@ -12,7 +12,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def get_player_headshot_url(player_id: int, size: str = "medium") -> str:
+def get_player_headshot_url(player_id: int, size: str = "small") -> str:
     """
     Generate MLB player headshot image URL.
     
@@ -21,7 +21,7 @@ def get_player_headshot_url(player_id: int, size: str = "medium") -> str:
     
     Args:
         player_id: MLB player ID (e.g., 592450 for Aaron Judge)
-        size: Image size - 'small' (120px), 'medium' (213px), or 'large' (426px)
+        size: Image size - 'small' (70px), 'medium' (120px), or 'large' (213px)
     
     Returns:
         URL to player headshot image
@@ -38,12 +38,12 @@ def get_player_headshot_url(player_id: int, size: str = "medium") -> str:
     """
     # Size configuration
     sizes = {
-        'small': 'w_120',   # 120px width (thumbnail)
-        'medium': 'w_213',  # 213px width (default)
-        'large': 'w_426'    # 426px width (high-res)
+        'small': 'w_70',    # 70px width (thumbnail)
+        'medium': 'w_120',  # 120px width (default)
+        'large': 'w_213'    # 213px width (high-res)
     }
     
-    width = sizes.get(size, sizes['medium'])
+    width = sizes.get(size, sizes['small'])
     
     # MLB Cloudinary URL pattern
     # - d_people:generic:headshot:67:current.png = default/placeholder image if player photo missing
@@ -63,7 +63,7 @@ def get_player_headshot_url(player_id: int, size: str = "medium") -> str:
     return url
 
 
-def get_player_action_shot_url(player_id: int, size: str = "medium") -> str:
+def get_player_action_shot_url(player_id: int, size: str = "small") -> str:
     """
     Generate MLB player action shot image URL.
     
@@ -81,12 +81,12 @@ def get_player_action_shot_url(player_id: int, size: str = "medium") -> str:
         - Falls back to generic placeholder if unavailable
     """
     sizes = {
-        'small': 'w_180',
-        'medium': 'w_360',
-        'large': 'w_720'
+        'small': 'w_120',
+        'medium': 'w_213',
+        'large': 'w_426'
     }
     
-    width = sizes.get(size, sizes['medium'])
+    width = sizes.get(size, sizes['small'])
     
     base_url = "https://img.mlbstatic.com/mlb-photos/image/upload"
     default_image = "d_people:generic:action:current.png"

@@ -853,7 +853,7 @@ if 'query_handler' not in st.session_state:
     st.session_state.query_handler = StreamlitMLBQuery()
 
 
-def display_player_card(player_name: str, size: str = "medium", show_info: bool = True):
+def display_player_card(player_name: str, size: str = "small", show_info: bool = True):
     """
     Display a baseball card image for a player.
     
