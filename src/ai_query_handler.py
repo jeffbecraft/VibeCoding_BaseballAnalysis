@@ -264,7 +264,12 @@ IMPORTANT:
 - Do NOT include any explanatory text, just the code
 - Use try/except to handle potential errors
 - The code will be executed in a controlled environment
-- For player comparisons, use get_stats_leaders to show both players in ranked context
+
+COMPARISON QUERY GUIDELINES:
+- If comparing players/teams in a SINGLE SEASON with NO specific stat mentioned: Use get_player_season_stats or get_team_season_stats to get full stats
+- If comparing a SPECIFIC STAT (like "home runs" or "batting average"): Use get_stats_leaders with include_all=True to show rankings
+- If comparing CAREER stats: Use get_player_career_stats/get_team_career_stats and compare_player_careers
+- Keywords that indicate full season comparison: "vs", "versus", "compare", "in [year]" without stat mention
 
 Example 1 (Season Leaders):
 Question: "Who hit the most home runs in 2024?"
@@ -346,7 +351,54 @@ except Exception as e:
     result = {'success': False, 'error': str(e)}
 ```
 
-Example 4 (Season Comparison with Ranking):
+Example 4 (Single Season Full Stats Comparison):
+Question: "Aaron Judge vs Cal Raleigh in 2024"
+Code:
+```python
+try:
+    # Search for both players
+    judge_results = data_fetcher.search_players('Aaron Judge')
+    raleigh_results = data_fetcher.search_players('Cal Raleigh')
+    
+    if not judge_results or not raleigh_results:
+        result = {'success': False, 'error': 'One or both players not found'}
+    else:
+        # Get season stats for both players
+        judge_stats = data_fetcher.get_player_season_stats(judge_results[0]['id'], season)
+        raleigh_stats = data_fetcher.get_player_season_stats(raleigh_results[0]['id'], season)
+        
+        # Extract key hitting stats for comparison
+        judge_data = {
+            'player': judge_results[0]['fullName'],
+            'games': judge_stats.get('gamesPlayed', 0),
+            'avg': judge_stats.get('avg', '.000'),
+            'hr': judge_stats.get('homeRuns', 0),
+            'rbi': judge_stats.get('rbi', 0),
+            'ops': judge_stats.get('ops', '.000')
+        }
+        
+        raleigh_data = {
+            'player': raleigh_results[0]['fullName'],
+            'games': raleigh_stats.get('gamesPlayed', 0),
+            'avg': raleigh_stats.get('avg', '.000'),
+            'hr': raleigh_stats.get('homeRuns', 0),
+            'rbi': raleigh_stats.get('rbi', 0),
+            'ops': raleigh_stats.get('ops', '.000')
+        }
+        
+        comparison_df = pd.DataFrame([judge_data, raleigh_data])
+        
+        result = {
+            'success': True,
+            'data': comparison_df.to_dict('records'),
+            'answer': f"{season} season comparison: {judge_results[0]['fullName']} vs {raleigh_results[0]['fullName']}",
+            'explanation': f'Retrieved and compared {season} season statistics for both players'
+        }
+except Exception as e:
+    result = {'success': False, 'error': str(e)}
+```
+
+Example 5 (Single Stat Comparison with Ranking):
 Question: "Aaron Judge vs Juan Soto home runs in 2024"
 Code:
 ```python
