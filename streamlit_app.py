@@ -81,9 +81,12 @@ class StreamlitMLBQuery:
                 
                 query_lower = query.lower()
                 
-                # Extract year
+                # Check for career queries
+                is_career_query = 'career' in query_lower
+                
+                # Extract year (not used for career queries)
                 year_match = re.search(r'\b(20\d{2}|19\d{2})\b', query)
-                year = int(year_match.group(1)) if year_match else get_current_season()
+                year = int(year_match.group(1)) if year_match and not is_career_query else get_current_season()
                 
                 # Extract statistic category
                 stat_type = None
@@ -97,7 +100,7 @@ class StreamlitMLBQuery:
                             stat_group = "pitching"
                         break
                 
-                if not stat_type:
+                if not stat_type and not is_career_query:
                     return None
                 
                 # Extract team name
@@ -125,7 +128,8 @@ class StreamlitMLBQuery:
                                'rbi', 'mlb', 'season', 'year', 'player', 'players', 'stats', 'statistics',
                                'which', 'when', 'how', 'had', 'has', 'have', 'runs', 'hits', 'wins',
                                'saves', 'walks', 'doubles', 'triples', 'strikeouts', 'innings', 'games',
-                               'average', 'errors', 'stolen', 'bases', 'percentage', 'batted', 'whip'}
+                               'average', 'errors', 'stolen', 'bases', 'percentage', 'batted', 'whip',
+                               'career', 'total', 'totals', 'all', 'time'}
                 
                 exclude_words = query_words.copy()
                 if team_name:
@@ -160,21 +164,31 @@ class StreamlitMLBQuery:
                 ranking_keywords = ['rank', 'leader', 'leaders', 'top', 'best', 'worst']
                 wants_ranking = any(keyword in query_lower for keyword in ranking_keywords)
                 
-                query_type = "leaders"
-                
-                # Check if this is asking about team-level stats (e.g., "which team had the most wins")
-                # vs team-filtered player stats (e.g., "rank the Orioles by home runs")
-                team_level_keywords = ['which team', 'what team', 'team with', 'team had']
-                is_team_level_query = any(keyword in query_lower for keyword in team_level_keywords)
-                
-                if is_team_level_query and not player_name:
-                    query_type = "team_rank"
-                elif player_name and wants_ranking:
-                    query_type = "rank"
-                elif player_name and not wants_ranking:
-                    query_type = "player_stat"
-                # If team_name is present but no player_name, it's a team-filtered leaders query
-                # This stays as "leaders" query type
+                # Career-specific query types
+                if is_career_query:
+                    if player_name:
+                        query_type = "player_career"
+                    elif team_name:
+                        query_type = "team_career"
+                    else:
+                        # Generic career query - might need AI
+                        return None
+                else:
+                    # Check if this is asking about team-level stats (e.g., "which team had the most wins")
+                    # vs team-filtered player stats (e.g., "rank the Orioles by home runs")
+                    team_level_keywords = ['which team', 'what team', 'team with', 'team had']
+                    is_team_level_query = any(keyword in query_lower for keyword in team_level_keywords)
+                    
+                    if is_team_level_query and not player_name:
+                        query_type = "team_rank"
+                    elif player_name and wants_ranking:
+                        query_type = "rank"
+                    elif player_name and not wants_ranking:
+                        query_type = "player_stat"
+                    # If team_name is present but no player_name, it's a team-filtered leaders query
+                    # This stays as "leaders" query type
+                    else:
+                        query_type = "leaders"
                 
                 # Extract limit
                 limit = 10
@@ -192,7 +206,8 @@ class StreamlitMLBQuery:
                     'team_id': team_id,
                     'team_name': team_name,
                     'league_id': league_id,
-                    'league_name': league_name
+                    'league_name': league_name,
+                    'is_career': is_career_query
                 }
             
             def get_stat_display_name(self, api_name: str) -> str:
@@ -252,6 +267,10 @@ class StreamlitMLBQuery:
                 return self._handle_player_ranking(parsed)
             elif query_type == 'player_stat':
                 return self._handle_player_stat(parsed)
+            elif query_type == 'player_career':
+                return self._handle_player_career(parsed)
+            elif query_type == 'team_career':
+                return self._handle_team_career(parsed)
             else:  # leaders
                 return self._handle_leaders(parsed)
         except Exception as e:
@@ -430,6 +449,111 @@ class StreamlitMLBQuery:
             return None, "No team rankings available."
         
         return teams_df, None
+    
+    def _handle_player_career(self, parsed):
+        """Handle player career statistics query."""
+        import pandas as pd
+        
+        player_results = self.fetcher.search_players(parsed['player_name'])
+        
+        if not player_results:
+            return None, f"Could not find player: {parsed['player_name']}"
+        
+        player = player_results[0]
+        player_id = player.get('id')
+        full_name = player.get('fullName', parsed['player_name'])
+        
+        # Get career stats
+        career_data = self.fetcher.get_player_career_stats(
+            player_id,
+            parsed['stat_group']
+        )
+        
+        if not career_data:
+            return None, f"No career stats found for {full_name}"
+        
+        # If a specific stat was requested, show career total for that stat
+        if parsed['stat_type']:
+            career_totals = self.processor.aggregate_career_stats(career_data, parsed['stat_group'])
+            
+            if not career_totals:
+                return None, f"Could not calculate career stats for {full_name}"
+            
+            # Get the specific stat value
+            stat_value = "N/A"
+            if parsed['stat_type'] in ['avg', 'obp', 'slg', 'ops', 'era', 'whip']:
+                # Rate stat
+                stat_value = career_totals['career_rates'].get(parsed['stat_type'], 'N/A')
+            else:
+                # Counting stat
+                stat_value = career_totals['totals'].get(parsed['stat_type'], 'N/A')
+            
+            result_dict = {
+                'player': full_name,
+                'stat': self.parser.get_stat_display_name(parsed['stat_type']),
+                'career_value': stat_value,
+                'seasons': career_totals['seasons']
+            }
+            
+            return result_dict, None
+        else:
+            # Show full career breakdown by season
+            career_df = self.processor.create_career_dataframe(career_data)
+            
+            if career_df.empty:
+                return None, f"No career data available for {full_name}"
+            
+            # Add career totals row
+            career_totals = self.processor.aggregate_career_stats(career_data, parsed['stat_group'])
+            
+            return {
+                'type': 'career_breakdown',
+                'player': full_name,
+                'by_season': career_df,
+                'totals': career_totals
+            }, None
+    
+    def _handle_team_career(self, parsed):
+        """Handle team career statistics query."""
+        import pandas as pd
+        
+        # Get team career stats (default to last 20 years if not specified)
+        current_year = get_current_season()
+        start_year = parsed.get('start_year', current_year - 19)
+        end_year = parsed.get('end_year', current_year)
+        
+        career_data = self.fetcher.get_team_career_stats(
+            parsed['team_id'],
+            parsed['stat_group'],
+            start_year,
+            end_year
+        )
+        
+        if not career_data:
+            return None, f"No career stats found for {parsed['team_name']}"
+        
+        # Create DataFrame
+        rows = []
+        for season_data in career_data:
+            season = season_data.get('season')
+            stat = season_data.get('stat', {})
+            
+            row = {'season': season}
+            row.update(stat)
+            rows.append(row)
+        
+        career_df = pd.DataFrame(rows)
+        
+        if career_df.empty:
+            return None, f"No career data available for {parsed['team_name']}"
+        
+        career_df = self.processor.convert_numeric_columns(career_df, exclude_cols=['season'])
+        
+        return {
+            'type': 'team_career',
+            'team': parsed['team_name'],
+            'data': career_df
+        }, None
 
 # Initialize query handler
 if 'query_handler' not in st.session_state:
@@ -450,10 +574,17 @@ with st.sidebar:
     - "ERA leaders for the Yankees"
     - "Which team had the most wins in 2024?"
     - "Best strikeouts in the American League"
+    - **"What are Aaron Judge's career home runs?"**
+    - **"Show me Derek Jeter's career stats"**
+    - **"Yankees career wins"**
     
     **Supported statistics:**
     - Hitting: HR, RBI, AVG, Hits, Runs, SB, OBP, SLG, OPS
     - Pitching: ERA, Wins, Saves, Strikeouts, WHIP
+    
+    **New: Career Stats!**
+    - Use "career" in your query to get all-time totals
+    - Works for both players and teams
     """)
     
     st.divider()
@@ -606,13 +737,76 @@ if query:
             
             # Display results based on type
             elif isinstance(result, dict):
-                # Single player stat or ranking
-                st.markdown("### Results")
+                # Check if it's a career breakdown
+                if result.get('type') == 'career_breakdown':
+                    st.markdown(f"### Career Statistics for {result['player']}")
+                    
+                    # Show season-by-season breakdown
+                    st.markdown("#### Season by Season")
+                    st.dataframe(
+                        result['by_season'],
+                        width='stretch',
+                        hide_index=True
+                    )
+                    
+                    # Show career totals
+                    st.markdown("#### Career Totals")
+                    totals = result['totals']
+                    
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.metric("Seasons Played", totals['seasons'])
+                    
+                    # Display counting stats
+                    st.markdown("**Counting Stats:**")
+                    totals_cols = st.columns(4)
+                    stats_to_show = list(totals['totals'].items())[:8]  # Show first 8 stats
+                    for i, (stat_name, value) in enumerate(stats_to_show):
+                        with totals_cols[i % 4]:
+                            st.metric(stat_name, value)
+                    
+                    # Display rate stats
+                    st.markdown("**Career Rate Stats:**")
+                    rate_cols = st.columns(len(totals['career_rates']))
+                    for i, (stat_name, value) in enumerate(totals['career_rates'].items()):
+                        with rate_cols[i]:
+                            st.metric(stat_name.upper(), value)
+                    
+                    # Download button
+                    csv = result['by_season'].to_csv(index=False)
+                    st.download_button(
+                        label="📥 Download Career Stats as CSV",
+                        data=csv,
+                        file_name=f"{result['player']}_career_stats.csv",
+                        mime="text/csv"
+                    )
                 
-                cols = st.columns(len(result))
-                for i, (key, value) in enumerate(result.items()):
-                    with cols[i]:
-                        st.metric(label=key.replace('_', ' ').title(), value=value)
+                elif result.get('type') == 'team_career':
+                    st.markdown(f"### Career Statistics for {result['team']}")
+                    
+                    st.dataframe(
+                        result['data'],
+                        width='stretch',
+                        hide_index=True
+                    )
+                    
+                    # Download button
+                    csv = result['data'].to_csv(index=False)
+                    st.download_button(
+                        label="📥 Download Team Career Stats as CSV",
+                        data=csv,
+                        file_name=f"{result['team']}_career_stats.csv",
+                        mime="text/csv"
+                    )
+                
+                else:
+                    # Single player stat or ranking
+                    st.markdown("### Results")
+                    
+                    cols = st.columns(len(result))
+                    for i, (key, value) in enumerate(result.items()):
+                        with cols[i]:
+                            st.metric(label=key.replace('_', ' ').title(), value=value)
             else:
                 # DataFrame results (leaders or team rankings)
                 st.markdown("### Results")

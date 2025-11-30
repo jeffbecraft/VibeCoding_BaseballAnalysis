@@ -237,13 +237,18 @@ You have access to:
    - get_teams() -> list of teams
    - search_players(name) -> list of players
    - get_player_season_stats(player_id, season) -> player stats
+   - get_player_career_stats(player_id, stat_group) -> list of dicts with stats for each season
    - get_team_season_stats(team_id, season, stat_group) -> team stats
+   - get_team_career_stats(team_id, stat_group, start_year, end_year) -> list of dicts with stats for each season
    - get_stats_leaders(stat_type, season, limit, stat_group) -> league leaders
 
 2. data_processor - An MLBDataProcessor instance with methods:
    - extract_stats_leaders(data, limit) -> processed leaders
    - extract_team_stats(teams_data, stat_name) -> team rankings
    - filter_by_season(data, season) -> filtered data
+   - aggregate_career_stats(career_data, stat_group) -> dict with 'seasons', 'totals', 'career_rates'
+   - create_career_dataframe(career_data) -> DataFrame with one row per season
+   - compare_player_careers(player1_career, player2_career, stat_group) -> comparison DataFrame
 
 3. pandas as pd, numpy as np - for data processing
 
@@ -259,23 +264,82 @@ IMPORTANT:
 - Use try/except to handle potential errors
 - The code will be executed in a controlled environment
 
-Example:
+Example 1 (Season Leaders):
 Question: "Who hit the most home runs in 2024?"
 Code:
 ```python
 try:
     leaders = data_fetcher.get_stats_leaders('homeRuns', season, 1, 'hitting')
-    processed = data_processor.extract_stats_leaders(leaders, 1)
-    if processed:
-        player = processed[0]
+    processed = data_processor.extract_stats_leaders(leaders)
+    if not processed.empty:
+        player = processed.iloc[0]
         result = {
             'success': True,
-            'data': processed,
-            'answer': f"{player['name']} hit the most home runs with {player['value']} HR",
+            'data': processed.to_dict('records'),
+            'answer': f"{player['playerName']} hit the most home runs with {player['value']} HR",
             'explanation': 'Retrieved hitting leaders for home runs from MLB API'
         }
     else:
         result = {'success': False, 'error': 'No data found'}
+except Exception as e:
+    result = {'success': False, 'error': str(e)}
+```
+
+Example 2 (Career Stats):
+Question: "What are Aaron Judge's career home runs?"
+Code:
+```python
+try:
+    # Search for player
+    players = data_fetcher.search_players('Aaron Judge')
+    if not players:
+        result = {'success': False, 'error': 'Player not found'}
+    else:
+        player_id = players[0]['id']
+        player_name = players[0]['fullName']
+        
+        # Get career stats
+        career_data = data_fetcher.get_player_career_stats(player_id, 'hitting')
+        career_totals = data_processor.aggregate_career_stats(career_data, 'hitting')
+        
+        total_hrs = career_totals['totals'].get('homeRuns', 0)
+        seasons = career_totals['seasons']
+        
+        result = {
+            'success': True,
+            'data': {'player': player_name, 'career_home_runs': total_hrs, 'seasons': seasons},
+            'answer': f"{player_name} has {total_hrs} career home runs across {seasons} seasons",
+            'explanation': 'Retrieved and aggregated career statistics for player'
+        }
+except Exception as e:
+    result = {'success': False, 'error': str(e)}
+```
+
+Example 3 (Career Comparison):
+Question: "Compare Aaron Judge and Juan Soto career stats"
+Code:
+```python
+try:
+    # Get both players
+    judge_results = data_fetcher.search_players('Aaron Judge')
+    soto_results = data_fetcher.search_players('Juan Soto')
+    
+    if not judge_results or not soto_results:
+        result = {'success': False, 'error': 'One or both players not found'}
+    else:
+        # Get career data
+        judge_career = data_fetcher.get_player_career_stats(judge_results[0]['id'], 'hitting')
+        soto_career = data_fetcher.get_player_career_stats(soto_results[0]['id'], 'hitting')
+        
+        # Compare careers
+        comparison_df = data_processor.compare_player_careers(judge_career, soto_career, 'hitting')
+        
+        result = {
+            'success': True,
+            'data': comparison_df.to_dict('records'),
+            'answer': f"Career comparison between {judge_results[0]['fullName']} and {soto_results[0]['fullName']}",
+            'explanation': 'Compared career statistics for both players'
+        }
 except Exception as e:
     result = {'success': False, 'error': str(e)}
 ```

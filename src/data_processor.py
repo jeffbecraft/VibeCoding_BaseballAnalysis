@@ -392,6 +392,198 @@ class MLBDataProcessor:
         df.insert(0, 'rank', range(1, len(df) + 1))
         
         return df
+    
+    def aggregate_career_stats(self, career_data: List[Dict], stat_group: str = "hitting") -> Dict:
+        """
+        Aggregate career statistics across all seasons.
+        
+        Args:
+            career_data: List of season stat dictionaries from get_player_career_stats
+            stat_group: 'hitting' or 'pitching'
+            
+        Returns:
+            Dictionary with aggregated career totals and averages
+        """
+        if not career_data:
+            return {}
+        
+        # Initialize totals
+        totals = {}
+        rate_stats = []
+        season_count = len(career_data)
+        
+        # Define which stats to sum vs average
+        if stat_group == "hitting":
+            sum_stats = ['gamesPlayed', 'atBats', 'runs', 'hits', 'doubles', 'triples', 
+                        'homeRuns', 'rbi', 'stolenBases', 'caughtStealing', 
+                        'baseOnBalls', 'strikeOuts', 'sacFlies', 'sacBunts']
+            rate_stat_names = ['avg', 'obp', 'slg', 'ops']
+        else:  # pitching
+            sum_stats = ['gamesPlayed', 'gamesStarted', 'wins', 'losses', 'saves',
+                        'hits', 'runs', 'earnedRuns', 'homeRuns', 'baseOnBalls', 
+                        'strikeOuts', 'completeGames', 'shutouts']
+            rate_stat_names = ['era', 'whip']
+        
+        # Sum counting stats
+        for stat_name in sum_stats:
+            totals[stat_name] = 0
+            for season in career_data:
+                stat_value = season.get('stat', {}).get(stat_name, 0)
+                if stat_value and stat_value != '':
+                    try:
+                        totals[stat_name] += float(stat_value)
+                    except (ValueError, TypeError):
+                        totals[stat_name] += 0
+        
+        # Handle innings pitched specially (it's a string like "123.1")
+        if stat_group == "pitching":
+            total_ip = 0.0
+            for season in career_data:
+                ip_str = season.get('stat', {}).get('inningsPitched', '0.0')
+                if ip_str:
+                    try:
+                        total_ip += float(ip_str)
+                    except (ValueError, TypeError):
+                        pass
+            totals['inningsPitched'] = f"{total_ip:.1f}"
+        
+        # Calculate career rate stats
+        career_rates = {}
+        
+        if stat_group == "hitting":
+            # Career batting average
+            if totals.get('atBats', 0) > 0:
+                career_rates['avg'] = f"{totals['hits'] / totals['atBats']:.3f}"
+            else:
+                career_rates['avg'] = ".000"
+            
+            # Career OBP
+            pa = totals.get('atBats', 0) + totals.get('baseOnBalls', 0) + \
+                 totals.get('sacFlies', 0)
+            if pa > 0:
+                obp_num = totals.get('hits', 0) + totals.get('baseOnBalls', 0)
+                career_rates['obp'] = f"{obp_num / pa:.3f}"
+            else:
+                career_rates['obp'] = ".000"
+            
+            # Career SLG
+            if totals.get('atBats', 0) > 0:
+                singles = totals.get('hits', 0) - totals.get('doubles', 0) - \
+                         totals.get('triples', 0) - totals.get('homeRuns', 0)
+                total_bases = singles + (2 * totals.get('doubles', 0)) + \
+                             (3 * totals.get('triples', 0)) + (4 * totals.get('homeRuns', 0))
+                career_rates['slg'] = f"{total_bases / totals['atBats']:.3f}"
+            else:
+                career_rates['slg'] = ".000"
+            
+            # Career OPS
+            try:
+                career_rates['ops'] = f"{float(career_rates['obp']) + float(career_rates['slg']):.3f}"
+            except:
+                career_rates['ops'] = ".000"
+        
+        elif stat_group == "pitching":
+            # Career ERA
+            try:
+                ip = float(totals.get('inningsPitched', '0.0'))
+                if ip > 0:
+                    career_rates['era'] = f"{(totals.get('earnedRuns', 0) * 9) / ip:.2f}"
+                else:
+                    career_rates['era'] = "0.00"
+            except:
+                career_rates['era'] = "0.00"
+            
+            # Career WHIP
+            try:
+                ip = float(totals.get('inningsPitched', '0.0'))
+                if ip > 0:
+                    whip = (totals.get('baseOnBalls', 0) + totals.get('hits', 0)) / ip
+                    career_rates['whip'] = f"{whip:.2f}"
+                else:
+                    career_rates['whip'] = "0.00"
+            except:
+                career_rates['whip'] = "0.00"
+        
+        # Combine totals and rates
+        result = {
+            'seasons': season_count,
+            'totals': totals,
+            'career_rates': career_rates
+        }
+        
+        return result
+    
+    def create_career_dataframe(self, career_data: List[Dict]) -> pd.DataFrame:
+        """
+        Convert career data from multiple seasons into a DataFrame.
+        
+        Args:
+            career_data: List of season dictionaries from get_player_career_stats
+            
+        Returns:
+            DataFrame with one row per season
+        """
+        if not career_data:
+            return pd.DataFrame()
+        
+        rows = []
+        for season_data in career_data:
+            season = season_data.get('season')
+            team = season_data.get('team', 'Unknown')
+            stat = season_data.get('stat', {})
+            
+            row = {'season': season, 'team': team}
+            row.update(stat)
+            rows.append(row)
+        
+        df = pd.DataFrame(rows)
+        return self.convert_numeric_columns(df, exclude_cols=['season', 'team'])
+    
+    def compare_player_careers(self, player1_career: List[Dict], 
+                              player2_career: List[Dict],
+                              stat_group: str = "hitting") -> pd.DataFrame:
+        """
+        Compare career statistics for two players side by side.
+        
+        Args:
+            player1_career: Career data for first player
+            player2_career: Career data for second player
+            stat_group: 'hitting' or 'pitching'
+            
+        Returns:
+            DataFrame comparing career totals
+        """
+        player1_totals = self.aggregate_career_stats(player1_career, stat_group)
+        player2_totals = self.aggregate_career_stats(player2_career, stat_group)
+        
+        if not player1_totals or not player2_totals:
+            return pd.DataFrame()
+        
+        # Create comparison DataFrame
+        comparison = {
+            'Statistic': [],
+            'Player 1': [],
+            'Player 2': []
+        }
+        
+        # Add season count
+        comparison['Statistic'].append('Seasons')
+        comparison['Player 1'].append(player1_totals['seasons'])
+        comparison['Player 2'].append(player2_totals['seasons'])
+        
+        # Add all counting stats
+        for stat_name, value in player1_totals['totals'].items():
+            comparison['Statistic'].append(stat_name)
+            comparison['Player 1'].append(value)
+            comparison['Player 2'].append(player2_totals['totals'].get(stat_name, 0))
+        
+        # Add rate stats
+        for stat_name, value in player1_totals['career_rates'].items():
+            comparison['Statistic'].append(f"Career {stat_name.upper()}")
+            comparison['Player 1'].append(value)
+            comparison['Player 2'].append(player2_totals['career_rates'].get(stat_name, 'N/A'))
+        
+        return pd.DataFrame(comparison)
 
 
 if __name__ == "__main__":

@@ -161,16 +161,18 @@ class MLBDataFetcher:
             return data["roster"]
         return []
     
-    def search_players(self, name: str) -> List[Dict]:
+    def search_players(self, name: str, include_retired: bool = True) -> List[Dict]:
         """
         Search for players by name.
         
         Args:
             name: Player name to search for
+            include_retired: If True, search historical seasons for retired players
             
         Returns:
             List of matching players
         """
+        # Try current season first
         endpoint = "sports/1/players"
         params = {
             "season": datetime.now().year,
@@ -179,15 +181,36 @@ class MLBDataFetcher:
         }
         data = self._make_request(endpoint, params)
         
-        if not data or "people" not in data:
-            return []
-        
-        # Filter by name
         name_lower = name.lower()
-        return [
-            player for player in data["people"]
-            if name_lower in player.get("fullName", "").lower()
-        ]
+        results = []
+        
+        if data and "people" in data:
+            results = [
+                player for player in data["people"]
+                if name_lower in player.get("fullName", "").lower()
+            ]
+        
+        # If no results and include_retired, search recent historical seasons
+        if not results and include_retired:
+            current_year = datetime.now().year
+            # Search back through recent seasons (last 30 years)
+            for year in range(current_year - 1, current_year - 31, -1):
+                params["season"] = year
+                data = self._make_request(endpoint, params)
+                
+                if data and "people" in data:
+                    historical_results = [
+                        player for player in data["people"]
+                        if name_lower in player.get("fullName", "").lower()
+                    ]
+                    
+                    if historical_results:
+                        # Add info about last season played
+                        for player in historical_results:
+                            player['lastSeasonFound'] = year
+                        return historical_results
+        
+        return results
     
     def get_teams(self, season: Optional[int] = None) -> List[Dict]:
         """
@@ -522,6 +545,99 @@ class MLBDataFetcher:
             time.sleep(0.1)
         
         return team_stats
+    
+    def get_player_career_stats(self, player_id: int, stat_group: str = "hitting") -> List[Dict]:
+        """
+        Get career statistics for a player across all seasons.
+        
+        Args:
+            player_id: MLB player ID
+            stat_group: Type of stats ('hitting', 'pitching', 'fielding')
+            
+        Returns:
+            List of dictionaries containing stats for each season
+        """
+        endpoint = f"people/{player_id}"
+        params = {
+            "hydrate": f"stats(group=[{stat_group}],type=[yearByYear])"
+        }
+        data = self._make_request(endpoint, params)
+        
+        if not data or "people" not in data or len(data["people"]) == 0:
+            return []
+        
+        player_data = data["people"][0]
+        career_stats = []
+        
+        # Extract stats from all seasons
+        if "stats" in player_data:
+            for stat_group_data in player_data["stats"]:
+                if stat_group_data.get("type", {}).get("displayName") == "yearByYear":
+                    splits = stat_group_data.get("splits", [])
+                    for split in splits:
+                        season = split.get("season")
+                        stat = split.get("stat", {})
+                        team = split.get("team", {})
+                        
+                        career_stats.append({
+                            "season": season,
+                            "team": team.get("name", "Unknown"),
+                            "team_id": team.get("id"),
+                            "stat": stat
+                        })
+        
+        return career_stats
+    
+    def get_team_career_stats(self, team_id: int, stat_group: str = "hitting", 
+                             start_year: Optional[int] = None, 
+                             end_year: Optional[int] = None) -> List[Dict]:
+        """
+        Get career (historical) statistics for a team across multiple seasons.
+        
+        Args:
+            team_id: MLB team ID
+            stat_group: 'hitting' or 'pitching'
+            start_year: Starting season (optional, defaults to 1900)
+            end_year: Ending season (optional, defaults to current year)
+            
+        Returns:
+            List of dictionaries containing stats for each season
+        """
+        if start_year is None:
+            start_year = 1900
+        if end_year is None:
+            end_year = datetime.now().year
+        
+        career_stats = []
+        
+        # Get stats for each season
+        for season in range(start_year, end_year + 1):
+            stats_endpoint = f"teams/{team_id}/stats"
+            stats_params = {
+                "stats": "season",
+                "season": season,
+                "group": stat_group
+            }
+            
+            stats_response = self._make_request(stats_endpoint, stats_params)
+            
+            if stats_response and 'stats' in stats_response:
+                for stat_data in stats_response['stats']:
+                    splits = stat_data.get('splits', [])
+                    if splits:
+                        stat = splits[0].get('stat', {})
+                        
+                        career_stats.append({
+                            'season': season,
+                            'team_id': team_id,
+                            'stat': stat
+                        })
+                        break
+            
+            # Small delay to avoid rate limiting
+            time.sleep(0.05)
+        
+        return career_stats
 
 
 if __name__ == "__main__":
