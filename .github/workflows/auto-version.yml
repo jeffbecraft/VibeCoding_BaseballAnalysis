@@ -17,6 +17,9 @@ jobs:
     
     # Only run on non-version-bump commits to avoid infinite loops
     if: "!contains(github.event.head_commit.message, '[auto-version]')"
+    
+    permissions:
+      contents: write
 
     steps:
     - name: Checkout code
@@ -24,6 +27,7 @@ jobs:
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         fetch-depth: 0
+        persist-credentials: true
 
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -69,20 +73,27 @@ jobs:
         # Check if there are changes to commit
         if git diff --staged --quiet; then
           echo "No version changes to commit"
-        else
-          # Commit with special marker to prevent workflow loop
-          git commit -m "chore: bump version to $NEW_VERSION [auto-version]"
-          
-          # Push changes
-          git push
-          
-          echo "✓ Version bumped to $NEW_VERSION and pushed to repository"
+          exit 0
         fi
+        
+        # Commit with special marker to prevent workflow loop
+        git commit -m "chore: bump version to $NEW_VERSION [auto-version]"
+        
+        # Push changes
+        git push origin HEAD:${GITHUB_REF#refs/heads/}
+        
+        echo "✓ Version bumped to $NEW_VERSION and pushed to repository"
 
     - name: Create version tag
       if: steps.tests.outcome == 'success'
       run: |
         NEW_VERSION=$(python -c "from src import __version__; print(__version__)")
+        
+        # Check if tag already exists
+        if git rev-parse "v$NEW_VERSION" >/dev/null 2>&1; then
+          echo "Tag v$NEW_VERSION already exists, skipping"
+          exit 0
+        fi
         
         # Create annotated tag
         git tag -a "v$NEW_VERSION" -m "Auto-generated version v$NEW_VERSION"
