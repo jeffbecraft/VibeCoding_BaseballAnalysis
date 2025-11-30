@@ -1354,7 +1354,7 @@ if query:
             elif result.get('type') == 'career_breakdown':
                 # Display player baseball card at the top
                 st.markdown("---")
-                player_card_data = display_player_card(result['player'], size='medium', show_info=True)
+                player_card_data = display_player_card(result['player'], show_info=True)
                 st.markdown("---")
                 
                 st.markdown(f"### Career Statistics for {result['player']}")
@@ -1422,7 +1422,7 @@ if query:
                 # Check if this is a player-specific query and display card
                 if 'player' in result and isinstance(result['player'], str):
                     st.markdown("---")
-                    player_card_data = display_player_card(result['player'], size='medium', show_info=True)
+                    player_card_data = display_player_card(result['player'], show_info=True)
                     st.markdown("---")
                 
                 st.markdown("### Results")
