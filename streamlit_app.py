@@ -864,17 +864,17 @@ with st.sidebar:
     
     st.markdown("""
     **Ask questions like:**
-    - "Top 10 home runs in 2024"
-    - "What was Shohei Ohtani's batting average in 2024?"
-    - "Rank Aaron Judge's home runs"
-    - "ERA leaders for the Yankees"
-    - "Which team had the most wins in 2024?"
+    - "Top 10 home runs in 2025"
+    - "What was Gunnar Henderson's batting average in 2025?"
+    - "Rank Anthony Santander's home runs"
+    - "ERA leaders for the Orioles"
+    - "Which team had the most wins in 2025?"
     - "Best strikeouts in the American League"
-    - **"What are Aaron Judge's career home runs?"**
-    - **"Show me Derek Jeter's career stats"**
-    - **"Yankees career wins"**
-    - **"Compare Aaron Judge vs Juan Soto home runs"**
-    - **"Ohtani versus Trout batting average"**
+    - **"What are Adley Rutschman's career home runs?"**
+    - **"Show me Ryan Mountcastle's career stats"**
+    - **"Orioles career wins"**
+    - **"Compare Gunnar Henderson vs Anthony Santander home runs"**
+    - **"Corbin Burnes versus Kyle Bradish ERA"**
     
     **Supported statistics:**
     - Hitting: HR, RBI, AVG, Hits, Runs, SB, OBP, SLG, OPS
