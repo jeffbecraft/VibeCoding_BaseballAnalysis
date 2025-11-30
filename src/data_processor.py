@@ -119,8 +119,12 @@ class MLBDataProcessor:
         
         for col in df_copy.columns:
             if col not in exclude:
-                # Try to convert to numeric
-                df_copy[col] = pd.to_numeric(df_copy[col], errors='ignore')
+                # Try to convert to numeric, keeping non-numeric values as-is
+                try:
+                    df_copy[col] = pd.to_numeric(df_copy[col])
+                except (ValueError, TypeError):
+                    # If conversion fails, keep the column as-is
+                    pass
         
         return df_copy
     
