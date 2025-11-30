@@ -334,16 +334,15 @@ class MLBQueryGUI:
         Returns:
             List of matching player dictionaries with rank information (empty if not found)
         """
-        # When filtering by team/league, get all players; otherwise limit to 500
-        limit = 500 if (team_id or league_id) else 500
-        
+        # Get complete rankings for all players
         leaders = self.fetcher.get_stats_leaders(
             stat_type=stat_type,
             season=year,
-            limit=limit,
+            limit=None,
             stat_group=stat_group,
             team_id=team_id,
-            league_id=league_id
+            league_id=league_id,
+            include_all=True  # Get ALL players for accurate ranking
         )
         
         matches = []
@@ -547,16 +546,17 @@ class MLBQueryGUI:
                     self.status_var.set("Player not found in leaders")
             else:
                 # Show leaders
-                # When filtering by team/league, get all players; otherwise use specified limit
-                actual_limit = 500 if (params['team_id'] or params['league_id']) else params['limit']
+                # When filtering by team/league, get all players for accurate ranking
+                include_all = bool(params['team_id'] or params['league_id'])
                 
                 leaders = self.fetcher.get_stats_leaders(
                     stat_type=params['stat_type'],
                     season=params['year'],
-                    limit=actual_limit,
+                    limit=params['limit'],
                     stat_group=params['stat_group'],
                     team_id=params['team_id'],
-                    league_id=params['league_id']
+                    league_id=params['league_id'],
+                    include_all=include_all
                 )
                 
                 if leaders:

@@ -292,20 +292,63 @@ class MLBDataFetcher:
         
         return all_stats
     
+    def get_all_players_stats(self, season: int, stat_group: str = "hitting",
+                              league_id: Optional[int] = None) -> List[Dict]:
+        """
+        Get statistics for ALL MLB players in a season (no limits).
+        
+        Args:
+            season: Season year
+            stat_group: 'hitting' or 'pitching'
+            league_id: Filter by league (103=AL, 104=NL) (optional)
+            
+        Returns:
+            List of player stat dictionaries
+        """
+        # Get all teams
+        all_teams = self.get_teams(season)
+        
+        if not all_teams:
+            return []
+        
+        # Filter by league if specified
+        if league_id is not None:
+            all_teams = [team for team in all_teams 
+                        if team.get('league', {}).get('id') == league_id]
+        
+        all_player_stats = []
+        
+        # Get stats from each team
+        for team in all_teams:
+            team_id = team.get('id')
+            
+            # Get team player stats
+            team_stats = self.get_team_player_stats(team_id, season, stat_group)
+            
+            # Add to overall list
+            all_player_stats.extend(team_stats)
+            
+            # Small delay to avoid rate limiting
+            time.sleep(0.05)
+        
+        return all_player_stats
+    
     def get_stats_leaders(self, stat_type: str, season: Optional[int] = None, 
                          limit: int = 50, stat_group: str = "hitting",
                          team_id: Optional[int] = None,
-                         league_id: Optional[int] = None) -> List[Dict]:
+                         league_id: Optional[int] = None,
+                         include_all: bool = False) -> List[Dict]:
         """
         Get top players by a specific statistic.
         
         Args:
             stat_type: Statistic to rank by (e.g., 'homeRuns', 'avg', 'era', 'strikeouts')
             season: Season year (defaults to current year)
-            limit: Number of leaders to return (default 50)
+            limit: Number of leaders to return (default 50, ignored if include_all=True)
             stat_group: 'hitting' or 'pitching'
             team_id: Filter by specific team ID (optional)
             league_id: Filter by league (103=AL, 104=NL) (optional)
+            include_all: If True, rank ALL players who played in the season (default False)
             
         Returns:
             List of player dictionaries with stats
@@ -316,16 +359,21 @@ class MLBDataFetcher:
         if season is None:
             season = datetime.now().year
         
-        # For team-specific queries, use different endpoint
-        if team_id is not None:
-            team_stats = self.get_team_player_stats(team_id, season, stat_group)
+        # For complete rankings or team-specific queries, get all player stats
+        if include_all or team_id is not None:
+            if team_id is not None:
+                # Get stats for specific team
+                all_stats = self.get_team_player_stats(team_id, season, stat_group)
+            else:
+                # Get stats for all players in the league/season
+                all_stats = self.get_all_players_stats(season, stat_group, league_id)
             
-            if not team_stats:
+            if not all_stats:
                 return []
             
-            # Convert to leaders format
+            # Convert to leaders format and rank
             leaders = []
-            for player_stat in team_stats:
+            for player_stat in all_stats:
                 stat = player_stat.get('stat', {})
                 value = stat.get(stat_type)
                 
@@ -347,8 +395,13 @@ class MLBDataFetcher:
             for idx, leader in enumerate(leaders):
                 leader['rank'] = idx + 1
             
-            return leaders
+            # Apply limit if not include_all
+            if not include_all and limit:
+                leaders = leaders[:limit]
             
+            return leaders
+        
+        # For quick queries without complete rankings, use the API's leaders endpoint
         endpoint = "stats/leaders"
         params = {
             "leaderCategories": stat_type,
