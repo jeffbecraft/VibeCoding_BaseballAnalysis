@@ -12,6 +12,7 @@ A comprehensive Python-based system for fetching, processing, and analyzing Majo
 - **Team Analysis**: Analyze team performance and trends
 - **Natural Language GUI**: Query MLB statistics using natural language questions
 - **Stats Leaders**: Find top 50 players in any statistical category
+- **Team & League Filtering**: Filter stats by specific teams or leagues (AL/NL)
 
 ## Project Structure
 
@@ -53,8 +54,37 @@ Example questions:
 - "Where did Gunnar Henderson rank in stolen bases in 2025?"
 - "Show me the top 10 ERA leaders in 2024"
 - "What was Aaron Judge's home run ranking in 2024?"
+- "Top home run leaders for the Yankees in 2025"
+- "American League ERA leaders"
 
 See [GUI_GUIDE.md](GUI_GUIDE.md) for complete documentation.
+
+### Team & League Filtering
+
+Filter statistics by team or league:
+
+```python
+from helpers import TEAM_IDS, LEAGUE_IDS
+
+# Get Yankees home run leaders
+yankees_hr = fetcher.get_stats_leaders(
+    stat_type="homeRuns",
+    season=2025,
+    limit=10,
+    team_id=TEAM_IDS["Yankees"]
+)
+
+# Get American League ERA leaders
+al_era = fetcher.get_stats_leaders(
+    stat_type="era",
+    season=2025,
+    limit=10,
+    stat_group="pitching",
+    league_id=LEAGUE_IDS["American League"]
+)
+```
+
+See [TEAM_LEAGUE_FILTERING.md](TEAM_LEAGUE_FILTERING.md) for detailed examples.
 
 ### Fetching Data
 

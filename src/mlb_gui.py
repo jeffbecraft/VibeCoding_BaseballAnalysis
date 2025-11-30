@@ -11,7 +11,7 @@ import re
 from typing import Optional, Dict, Tuple
 from data_fetcher import MLBDataFetcher
 from data_processor import MLBDataProcessor
-from helpers import get_team_name, get_current_season
+from helpers import get_team_name, get_current_season, TEAM_IDS, LEAGUE_IDS
 
 
 class MLBQueryGUI:
@@ -106,7 +106,11 @@ class MLBQueryGUI:
             "What was Aaron Judge's home run ranking in 2024?",
             "Show me the top 10 ERA leaders in 2025",
             "Who are the stolen base leaders for 2025?",
-            "Find Shohei Ohtani's rank in home runs for 2024"
+            "Find Shohei Ohtani's rank in home runs for 2024",
+            "Top 10 home run leaders for the Yankees in 2025",
+            "Show me the Orioles batting average leaders",
+            "Top ERA leaders in the American League for 2025",
+            "National League stolen base leaders in 2024"
         ]
         
         for example in examples:
@@ -252,17 +256,42 @@ class MLBQueryGUI:
         if limit_match:
             limit = int(limit_match.group(1))
         
+        # Extract team name
+        team_id = None
+        team_name = None
+        for name, tid in TEAM_IDS.items():
+            if name.lower() in query_lower:
+                team_id = tid
+                team_name = name
+                break
+        
+        # Extract league
+        league_id = None
+        league_name = None
+        if 'american league' in query_lower or ' al ' in query_lower:
+            league_id = LEAGUE_IDS["American League"]
+            league_name = "American League"
+        elif 'national league' in query_lower or ' nl ' in query_lower:
+            league_id = LEAGUE_IDS["National League"]
+            league_name = "National League"
+        
         return {
             'player_name': player_name,
             'stat_type': stat_type,
             'stat_group': stat_group,
             'year': year,
             'query_type': query_type,
-            'limit': limit
+            'limit': limit,
+            'team_id': team_id,
+            'team_name': team_name,
+            'league_id': league_id,
+            'league_name': league_name
         }
     
     def find_player_rank(self, player_name: str, stat_type: str, 
-                        stat_group: str, year: int) -> Optional[Dict]:
+                        stat_group: str, year: int,
+                        team_id: Optional[int] = None,
+                        league_id: Optional[int] = None) -> Optional[Dict]:
         """
         Find a player's rank in a specific statistic.
         
@@ -271,6 +300,8 @@ class MLBQueryGUI:
             stat_type: Statistic type
             stat_group: 'hitting' or 'pitching'
             year: Season year
+            team_id: Filter by team ID (optional)
+            league_id: Filter by league ID (optional)
             
         Returns:
             Dictionary with rank information or None if not found
@@ -280,7 +311,9 @@ class MLBQueryGUI:
             stat_type=stat_type,
             season=year,
             limit=100,
-            stat_group=stat_group
+            stat_group=stat_group,
+            team_id=team_id,
+            league_id=league_id
         )
         
         if not leaders:
@@ -345,6 +378,10 @@ class MLBQueryGUI:
             self.results_text.insert(tk.END, f"Season: {params['year']}\n")
             if params['player_name']:
                 self.results_text.insert(tk.END, f"Player: {params['player_name']}\n")
+            if params['team_name']:
+                self.results_text.insert(tk.END, f"Team Filter: {params['team_name']}\n")
+            if params['league_name']:
+                self.results_text.insert(tk.END, f"League Filter: {params['league_name']}\n")
             self.results_text.insert(tk.END, "=" * 60 + "\n\n")
             
             # Process based on query type
@@ -354,7 +391,9 @@ class MLBQueryGUI:
                     params['player_name'],
                     params['stat_type'],
                     params['stat_group'],
-                    params['year']
+                    params['year'],
+                    team_id=params['team_id'],
+                    league_id=params['league_id']
                 )
                 
                 if rank_info:
@@ -377,13 +416,24 @@ class MLBQueryGUI:
                     stat_type=params['stat_type'],
                     season=params['year'],
                     limit=params['limit'],
-                    stat_group=params['stat_group']
+                    stat_group=params['stat_group'],
+                    team_id=params['team_id'],
+                    league_id=params['league_id']
                 )
                 
                 if leaders:
                     leaders_df = self.processor.extract_stats_leaders(leaders)
                     
-                    self.results_text.insert(tk.END, f"🏆 Top {params['limit']} {self.get_stat_display_name(params['stat_type'])} Leaders ({params['year']}):\n")
+                    # Build title with filters
+                    title_parts = [f"Top {params['limit']}"]
+                    if params['team_name']:
+                        title_parts.append(params['team_name'])
+                    if params['league_name']:
+                        title_parts.append(params['league_name'])
+                    title_parts.append(f"{self.get_stat_display_name(params['stat_type'])} Leaders")
+                    title_parts.append(f"({params['year']})")
+                    
+                    self.results_text.insert(tk.END, f"🏆 {' '.join(title_parts)}:\n")
                     self.results_text.insert(tk.END, "=" * 60 + "\n\n")
                     self.results_text.insert(tk.END, leaders_df.to_string(index=False))
                     self.results_text.insert(tk.END, "\n")

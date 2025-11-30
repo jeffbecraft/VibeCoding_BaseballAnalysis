@@ -38,6 +38,18 @@ The GUI understands natural language questions like:
 - "Top 20 home run leaders in 2024"
 - "Show the top 5 batting average leaders"
 
+### Team-Specific Queries
+- "Top 10 home run leaders for the Yankees in 2025"
+- "Show me the Orioles batting average leaders"
+- "Who are the top 5 RBI leaders for the Dodgers?"
+- "Top ERA leaders for the Red Sox in 2024"
+
+### League-Specific Queries
+- "Top ERA leaders in the American League for 2025"
+- "National League stolen base leaders in 2024"
+- "Show me the top 15 batting average leaders in the AL"
+- "Who are the NL home run leaders?"
+
 ## Supported Statistics
 
 ### Hitting Statistics
@@ -80,6 +92,8 @@ For best results:
 - **Include the statistic name** (e.g., "home runs", "ERA", "stolen bases")
 - **Capitalize player names** (e.g., "Aaron Judge", "Shohei Ohtani")
 - **Include the year** as a 4-digit number (e.g., "2024", "2025")
+- **Specify team names** to filter by team (e.g., "Yankees", "Dodgers", "Orioles")
+- **Mention league** to filter by league (e.g., "American League", "National League", "AL", "NL")
 - If no year is specified, the current season is used
 
 ## Technical Details
@@ -88,6 +102,8 @@ For best results:
 - Uses the MLB Stats API for data
 - Supports querying top 100 leaders for player rankings
 - Default shows top 10 leaders (can be customized with "top X" in your query)
+- Filters by team: Recognizes all 30 MLB team names
+- Filters by league: American League (AL) and National League (NL)
 
 ## Requirements
 

@@ -233,7 +233,9 @@ class MLBDataFetcher:
         return self._make_request(endpoint, params)
     
     def get_stats_leaders(self, stat_type: str, season: Optional[int] = None, 
-                         limit: int = 50, stat_group: str = "hitting") -> List[Dict]:
+                         limit: int = 50, stat_group: str = "hitting",
+                         team_id: Optional[int] = None,
+                         league_id: Optional[int] = None) -> List[Dict]:
         """
         Get top players by a specific statistic.
         
@@ -242,6 +244,8 @@ class MLBDataFetcher:
             season: Season year (defaults to current year)
             limit: Number of leaders to return (default 50)
             stat_group: 'hitting' or 'pitching'
+            team_id: Filter by specific team ID (optional)
+            league_id: Filter by league (103=AL, 104=NL) (optional)
             
         Returns:
             List of player dictionaries with stats
@@ -260,6 +264,12 @@ class MLBDataFetcher:
             "statGroup": stat_group,
             "limit": limit
         }
+        
+        # Add optional filters
+        if team_id is not None:
+            params["teamId"] = team_id
+        if league_id is not None:
+            params["leagueId"] = league_id
         
         data = self._make_request(endpoint, params)
         
