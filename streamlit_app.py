@@ -117,7 +117,9 @@ class StreamlitMLBQuery:
                 query_words = {'where', 'did', 'rank', 'what', 'was', 'show', 'me', 'the', 'top',
                                'who', 'are', 'in', 'for', 'find', 'leaders', 'ranking', 'get', 'era',
                                'rbi', 'mlb', 'season', 'year', 'player', 'players', 'stats', 'statistics',
-                               'which', 'when', 'how', 'had', 'has', 'have'}
+                               'which', 'when', 'how', 'had', 'has', 'have', 'runs', 'hits', 'wins',
+                               'saves', 'walks', 'doubles', 'triples', 'strikeouts', 'innings', 'games',
+                               'average', 'errors', 'stolen', 'bases', 'percentage', 'batted', 'whip'}
                 
                 exclude_words = query_words.copy()
                 if team_name:
