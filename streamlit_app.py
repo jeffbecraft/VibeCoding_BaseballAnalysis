@@ -224,20 +224,17 @@ class StreamlitMLBQuery:
         if not stats_data:
             return None, "No data found for this query."
         
-        leaders_df = self.processor.extract_stats_leaders(
-            stats_data,
-            parsed['stat_type'],
-            parsed['stat_group']
-        )
+        leaders_df = self.processor.extract_stats_leaders(stats_data)
         
         if leaders_df.empty:
             return None, "No leaders found for this statistic."
         
         # Apply filters
         if parsed['team_id']:
-            leaders_df = leaders_df[leaders_df['team_id'] == parsed['team_id']]
+            leaders_df = leaders_df[leaders_df['teamId'] == parsed['team_id']]
         if parsed['league_id']:
-            leaders_df = leaders_df[leaders_df['league_id'] == parsed['league_id']]
+            # League filtering was already done in get_stats_leaders
+            pass
         
         leaders_df = leaders_df.head(parsed['limit'])
         
@@ -302,29 +299,26 @@ class StreamlitMLBQuery:
         if not stats_data:
             return None, "No ranking data available."
         
-        leaders_df = self.processor.extract_stats_leaders(
-            stats_data,
-            parsed['stat_type'],
-            parsed['stat_group']
-        )
+        leaders_df = self.processor.extract_stats_leaders(stats_data)
         
         if leaders_df.empty:
             return None, "No ranking data available."
         
         # Apply filters
         if parsed['team_id']:
-            leaders_df = leaders_df[leaders_df['team_id'] == parsed['team_id']]
+            leaders_df = leaders_df[leaders_df['teamId'] == parsed['team_id']]
         if parsed['league_id']:
-            leaders_df = leaders_df[leaders_df['league_id'] == parsed['league_id']]
+            # League filtering was already done in get_stats_leaders
+            pass
         
         # Find player rank
-        player_row = leaders_df[leaders_df['name'].str.contains(parsed['player_name'], case=False, na=False)]
+        player_row = leaders_df[leaders_df['playerName'].str.contains(parsed['player_name'], case=False, na=False)]
         
         if player_row.empty:
             return None, f"{full_name} not found in rankings for this statistic."
         
-        rank = player_row.index[0] + 1
-        stat_value = player_row.iloc[0][parsed['stat_type']]
+        rank = player_row.iloc[0]['rank']
+        stat_value = player_row.iloc[0]['value']
         
         result_dict = {
             'player': full_name,
@@ -350,16 +344,11 @@ class StreamlitMLBQuery:
         
         teams_df = self.processor.extract_team_stats(
             teams_data,
-            parsed['stat_type'],
-            parsed['stat_group']
+            parsed['stat_type']
         )
         
         if teams_df.empty:
             return None, "No team rankings available."
-        
-        # Apply league filter
-        if parsed['league_id']:
-            teams_df = teams_df[teams_df['league_id'] == parsed['league_id']]
         
         return teams_df, None
 
