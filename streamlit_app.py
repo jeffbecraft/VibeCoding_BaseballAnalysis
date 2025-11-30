@@ -256,8 +256,7 @@ class StreamlitMLBQuery:
         
         stats_data = self.fetcher.get_player_season_stats(
             player_id,
-            parsed['year'],
-            stat_group=parsed['stat_group']
+            parsed['year']
         )
         
         if not stats_data:
