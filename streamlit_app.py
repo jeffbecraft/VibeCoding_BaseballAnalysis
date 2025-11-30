@@ -15,6 +15,7 @@ from data_fetcher import MLBDataFetcher
 from data_processor import MLBDataProcessor
 from helpers import get_team_name, get_current_season, TEAM_IDS, LEAGUE_IDS
 from mlb_gui import MLBQueryGUI
+from ai_query_handler import AIQueryHandler
 import re
 from typing import Optional, Dict
 
@@ -51,6 +52,11 @@ if 'fetcher' not in st.session_state:
     st.session_state.fetcher = MLBDataFetcher(use_cache=True)
     st.session_state.processor = MLBDataProcessor()
     st.session_state.history = []
+    # Initialize AI query handler
+    st.session_state.ai_handler = AIQueryHandler(
+        st.session_state.fetcher,
+        st.session_state.processor
+    )
 
 # Helper class to adapt GUI logic for Streamlit
 class StreamlitMLBQuery:
@@ -203,7 +209,22 @@ class StreamlitMLBQuery:
         parsed = self.parser.parse_query(query_text)
         
         if not parsed:
-            return None, "Could not understand the query. Please try rephrasing."
+            # Try AI-powered query handling as fallback
+            if st.session_state.ai_handler and st.session_state.ai_handler.is_available():
+                st.info("🤖 Standard query pattern not recognized. Using AI to interpret your question...")
+                
+                # Extract year from query if present
+                year_match = re.search(r'\b(20\d{2}|19\d{2})\b', query_text)
+                season = int(year_match.group(1)) if year_match else get_current_season()
+                
+                ai_result = st.session_state.ai_handler.handle_query(query_text, season)
+                
+                if ai_result.get('success'):
+                    return ai_result, None
+                else:
+                    return None, f"AI Query Failed: {ai_result.get('error', 'Unknown error')}"
+            else:
+                return None, "Could not understand the query. Please try rephrasing."
         
         query_type = parsed['query_type']
         
@@ -217,7 +238,22 @@ class StreamlitMLBQuery:
             else:  # leaders
                 return self._handle_leaders(parsed)
         except Exception as e:
-            return None, f"Error executing query: {str(e)}"
+            # If standard query fails, try AI fallback
+            if st.session_state.ai_handler and st.session_state.ai_handler.is_available():
+                st.warning(f"⚠️ Standard query failed: {str(e)}")
+                st.info("🤖 Trying AI-powered query interpretation...")
+                
+                year_match = re.search(r'\b(20\d{2}|19\d{2})\b', query_text)
+                season = int(year_match.group(1)) if year_match else get_current_season()
+                
+                ai_result = st.session_state.ai_handler.handle_query(query_text, season)
+                
+                if ai_result.get('success'):
+                    return ai_result, None
+                else:
+                    return None, f"Both standard and AI queries failed. Error: {str(e)}"
+            else:
+                return None, f"Error executing query: {str(e)}"
     
     def _handle_leaders(self, parsed):
         """Handle stats leaders query."""
@@ -389,6 +425,76 @@ with st.sidebar:
     
     st.divider()
     
+    # AI Query Status
+    st.header("🤖 AI-Powered Queries")
+    
+    if st.session_state.ai_handler.is_available():
+        provider_info = st.session_state.ai_handler.get_provider_info()
+        
+        if provider_info['provider'] == 'ollama':
+            st.success("✅ AI Assistant Enabled (FREE)")
+            st.caption(f"""
+            Using **Ollama** ({provider_info['model']}) - completely free!
+            AI can answer questions that don't match standard patterns.
+            """)
+        elif provider_info['provider'] == 'openai':
+            st.success("✅ AI Assistant Enabled")
+            st.caption(f"""
+            Using **OpenAI** ({provider_info['model']})
+            AI can answer questions that don't match standard patterns.
+            """)
+        
+        # Test AI connection
+        if st.button("Test AI Connection"):
+            test_result = st.session_state.ai_handler.test_connection()
+            if test_result['success']:
+                st.success(f"✅ {test_result['message']}")
+                if test_result.get('provider'):
+                    st.caption(f"Provider: {test_result['provider']}")
+            else:
+                st.error(f"❌ {test_result['message']}")
+    else:
+        st.warning("⚠️ AI Assistant Not Available")
+        st.caption("""
+        To enable AI-powered queries, choose one option:
+        """)
+        
+        with st.expander("🆓 Option 1: Ollama (FREE - Recommended)"):
+            st.markdown("""
+            **Run AI models locally - completely free!**
+            
+            1. Download Ollama from [ollama.com](https://ollama.com)
+            2. Install and run it
+            3. Download a model:
+               ```bash
+               ollama pull llama3.2
+               ```
+            4. Restart this app
+            
+            **Benefits:**
+            - ✅ Completely free
+            - ✅ Runs on your computer
+            - ✅ Private (no data sent to cloud)
+            - ✅ No API keys needed
+            """)
+        
+        with st.expander("💳 Option 2: OpenAI (Paid)"):
+            st.markdown("""
+            **Use OpenAI's cloud models**
+            
+            1. Get API key from [platform.openai.com](https://platform.openai.com)
+            2. Set environment variable:
+               ```bash
+               export OPENAI_API_KEY='your-key-here'
+               ```
+            3. Restart this app
+            
+            **Note:** Costs $0.01-$0.05 per AI query
+            """)
+
+    
+    st.divider()
+    
     # Cache management
     st.header("⚙️ Settings")
     
@@ -437,8 +543,36 @@ if query:
         elif result is not None:
             st.success("✅ Query executed successfully!")
             
+            # Check if this is an AI-generated result
+            if isinstance(result, dict) and result.get('ai_generated'):
+                st.info("🤖 This answer was generated using AI")
+                
+                # Display the answer
+                if result.get('answer'):
+                    st.markdown(f"### {result['answer']}")
+                
+                # Display explanation
+                if result.get('explanation'):
+                    st.caption(result['explanation'])
+                
+                # Show the data if available
+                if result.get('data'):
+                    data = result['data']
+                    if isinstance(data, list) and len(data) > 0:
+                        import pandas as pd
+                        st.dataframe(pd.DataFrame(data), width='stretch', hide_index=True)
+                    elif hasattr(data, 'to_dict'):  # DataFrame
+                        st.dataframe(data, width='stretch', hide_index=True)
+                    else:
+                        st.json(data)
+                
+                # Option to see generated code
+                with st.expander("🔍 View Generated Code"):
+                    st.code(result.get('generated_code', 'No code available'), language='python')
+                    st.caption("This code was automatically generated by AI to answer your question")
+            
             # Display results based on type
-            if isinstance(result, dict):
+            elif isinstance(result, dict):
                 # Single player stat or ranking
                 st.markdown("### Results")
                 
