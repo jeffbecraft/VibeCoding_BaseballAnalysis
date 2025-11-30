@@ -83,7 +83,7 @@ If you **don't configure** the GitHub token, users see:
 
 ```
 📧 To report issues, please:
-- Email: jeffbecraft@gmail.com
+- Email: jeffbecraft.professional@gmail.com
 - GitHub: Create an issue manually
 ```
 
@@ -181,7 +181,7 @@ After setup, test it:
 
 **Questions:**
 - Open an issue: https://github.com/jeffbecraft/VibeCoding_BaseballAnalysis/issues
-- Email: jeffbecraft@gmail.com
+- Email: jeffbecraft.professional@gmail.com
 
 ---
 

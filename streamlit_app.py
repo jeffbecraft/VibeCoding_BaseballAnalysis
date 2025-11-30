@@ -1124,7 +1124,7 @@ with st.sidebar:
     else:
         st.info("""
         📧 To report issues, please:
-        - Email: jeffbecraft@gmail.com
+        - Email: jeffbecraft.professional@gmail.com
         - GitHub: [Create an issue](https://github.com/jeffbecraft/VibeCoding_BaseballAnalysis/issues)
         """)
     

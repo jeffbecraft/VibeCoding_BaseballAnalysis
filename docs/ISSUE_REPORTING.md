@@ -491,7 +491,7 @@ For new deployments:
 
 **Issues with This Feature:**
 - Open an issue: https://github.com/jeffbecraft/VibeCoding_BaseballAnalysis/issues
-- Email: jeffbecraft@gmail.com
+- Email: jeffbecraft.professional@gmail.com
 
 ---
 
