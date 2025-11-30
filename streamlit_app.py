@@ -343,7 +343,6 @@ class StreamlitMLBQuery:
     def _handle_team_ranking(self, parsed):
         """Handle team ranking query."""
         teams_data = self.fetcher.get_team_stats(
-            parsed['stat_type'],
             season=parsed['year'],
             stat_group=parsed['stat_group']
         )
