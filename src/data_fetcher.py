@@ -21,6 +21,7 @@ load_dotenv()
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from utils.cache import MLBCache
 from src.logger import get_logger
+from src.name_normalizer import normalize_name, fuzzy_name_match, apply_known_aliases
 
 # Initialize logger
 logger = get_logger(__name__)
@@ -335,7 +336,13 @@ class MLBDataFetcher:
     
     def search_players(self, name: str, include_retired: bool = True) -> List[Dict]:
         """
-        Search for players by name.
+        Search for players by name with intelligent normalization.
+        
+        Handles names with:
+        - Accent marks (José → Jose)
+        - Special characters (O'Brien, Jean-Pierre)
+        - Partial names (just last name)
+        - Nicknames (Big Papi, A-Rod)
         
         Args:
             name: Player name to search for
@@ -343,7 +350,22 @@ class MLBDataFetcher:
             
         Returns:
             List of matching players
+            
+        Examples:
+            >>> fetcher = MLBDataFetcher()
+            >>> # All of these will find José Ramírez:
+            >>> fetcher.search_players("Jose Ramirez")
+            >>> fetcher.search_players("José Ramírez")
+            >>> fetcher.search_players("Ramirez")
         """
+        # Apply known aliases first (Big Papi → David Ortiz)
+        name = apply_known_aliases(name)
+        
+        # Normalize the search name for better matching
+        normalized_search = normalize_name(name)
+        
+        logger.debug(f"Searching for player: '{name}' (normalized: '{normalized_search}')")
+        
         # Try current season first
         endpoint = "sports/1/players"
         params = {
@@ -353,17 +375,22 @@ class MLBDataFetcher:
         }
         data = self._make_request(endpoint, params)
         
-        name_lower = name.lower()
         results = []
         
         if data and "people" in data:
-            results = [
-                player for player in data["people"]
-                if name_lower in player.get("fullName", "").lower()
-            ]
+            # Use fuzzy matching with name normalization
+            for player in data["people"]:
+                player_name = player.get("fullName", "")
+                if fuzzy_name_match(name, player_name):
+                    results.append(player)
+            
+            # Log matches found
+            if results:
+                logger.info(f"Found {len(results)} player(s) matching '{name}' in current season")
         
         # If no results and include_retired, search recent historical seasons
         if not results and include_retired:
+            logger.debug(f"No current players found for '{name}', searching historical seasons...")
             current_year = datetime.now().year
             # Search back through recent seasons (last 30 years)
             for year in range(current_year - 1, current_year - 31, -1):
@@ -371,15 +398,16 @@ class MLBDataFetcher:
                 data = self._make_request(endpoint, params)
                 
                 if data and "people" in data:
-                    historical_results = [
-                        player for player in data["people"]
-                        if name_lower in player.get("fullName", "").lower()
-                    ]
+                    historical_results = []
+                    for player in data["people"]:
+                        player_name = player.get("fullName", "")
+                        if fuzzy_name_match(name, player_name):
+                            # Add info about last season played
+                            player['lastSeasonFound'] = year
+                            historical_results.append(player)
                     
                     if historical_results:
-                        # Add info about last season played
-                        for player in historical_results:
-                            player['lastSeasonFound'] = year
+                        logger.info(f"Found {len(historical_results)} retired player(s) matching '{name}' in {year}")
                         return historical_results
         
         return results
