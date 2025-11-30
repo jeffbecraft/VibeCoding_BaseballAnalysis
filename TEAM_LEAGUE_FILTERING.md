@@ -7,10 +7,10 @@ The MLB Statistics system now supports filtering stats leaders by **team** and *
 ## Features
 
 ### 🏟️ Team Filtering
-Filter statistics to show only players from a specific MLB team.
+Filter statistics to show only players from a specific MLB team. When filtering by team, **all players from that team** are included in the rankings (not limited to top 10 or 50).
 
 ### ⚾ League Filtering
-Filter statistics to show only players from the American League (AL) or National League (NL).
+Filter statistics to show only players from the American League (AL) or National League (NL). When filtering by league, **all qualifying players from that league** are included in the rankings.
 
 ## Usage
 
@@ -26,6 +26,8 @@ Simply mention the team name or league in your natural language query:
 "Top ERA leaders for the Red Sox in 2024"
 ```
 
+**Important**: When you filter by team, the "top 10" or any number you specify is **ignored**. You will see **all players** from that team ranked by the statistic.
+
 #### League Examples:
 ```
 "Top ERA leaders in the American League for 2025"
@@ -33,6 +35,8 @@ Simply mention the team name or league in your natural language query:
 "Show me the top 15 batting average leaders in the AL"
 "Who are the NL home run leaders?"
 ```
+
+**Important**: When you filter by league, any limit you specify is **ignored**. You will see **all qualifying players** from that league ranked by the statistic.
 
 ### In Python Code / Jupyter Notebooks
 
@@ -197,9 +201,11 @@ yankees_2023_sb = fetcher.get_stats_leaders(
 
 - Team and league filters work with **all statistics** (hitting and pitching)
 - You can use filters for **any season** with available data
-- The **limit parameter** still applies when using filters
+- When filtering by **team or league**, all eligible players are included (no limit)
+- When **not filtering**, the default limit applies (typically 10 or as specified)
 - Filters are **optional** - omit them to see MLB-wide leaders
 - **Cannot combine** team and league filters (team filter takes precedence)
+- The "top X" in your query is **ignored when filtering by team/league** - you get all players
 
 ## Support
 

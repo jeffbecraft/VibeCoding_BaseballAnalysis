@@ -232,6 +232,66 @@ class MLBDataFetcher:
         }
         return self._make_request(endpoint, params)
     
+    def get_team_player_stats(self, team_id: int, season: int, 
+                              stat_group: str = "hitting") -> List[Dict]:
+        """
+        Get all player statistics for a specific team.
+        
+        Args:
+            team_id: MLB team ID
+            season: Season year
+            stat_group: 'hitting' or 'pitching'
+            
+        Returns:
+            List of player stat dictionaries
+        """
+        # Get team roster
+        roster = self.get_team_roster(team_id, season)
+        
+        if not roster:
+            return []
+        
+        # Get stats for each player
+        all_stats = []
+        for player_data in roster:
+            person = player_data.get('person', {})
+            player_id = person.get('id')
+            
+            if not player_id:
+                continue
+            
+            # Get player stats
+            stats = self.get_player_season_stats(player_id, season)
+            
+            if stats and 'stats' in stats:
+                for stat_group_data in stats['stats']:
+                    group = stat_group_data.get('group', {}).get('displayName', '')
+                    
+                    # Check if this is the stat group we want
+                    if (stat_group == 'hitting' and group == 'hitting') or \
+                       (stat_group == 'pitching' and group == 'pitching'):
+                        
+                        splits = stat_group_data.get('splits', [])
+                        
+                        # Find the split for this specific team
+                        team_stat = None
+                        for split in splits:
+                            split_team = split.get('team', {})
+                            if split_team.get('id') == team_id:
+                                team_stat = split.get('stat', {})
+                                break
+                        
+                        # If we found stats for this team, add them
+                        if team_stat:
+                            all_stats.append({
+                                'person': person,
+                                'team': {'id': team_id},
+                                'stat': team_stat
+                            })
+                        break
+        
+        return all_stats
+    
     def get_stats_leaders(self, stat_type: str, season: Optional[int] = None, 
                          limit: int = 50, stat_group: str = "hitting",
                          team_id: Optional[int] = None,
@@ -255,6 +315,39 @@ class MLBDataFetcher:
         """
         if season is None:
             season = datetime.now().year
+        
+        # For team-specific queries, use different endpoint
+        if team_id is not None:
+            team_stats = self.get_team_player_stats(team_id, season, stat_group)
+            
+            if not team_stats:
+                return []
+            
+            # Convert to leaders format
+            leaders = []
+            for player_stat in team_stats:
+                stat = player_stat.get('stat', {})
+                value = stat.get(stat_type)
+                
+                # Skip players without this stat
+                if value is None:
+                    continue
+                
+                leaders.append({
+                    'person': player_stat.get('person', {}),
+                    'team': player_stat.get('team', {}),
+                    'value': value
+                })
+            
+            # Sort by value (descending for most stats, ascending for ERA/WHIP)
+            reverse_sort = stat_type not in ['era', 'whip']
+            leaders.sort(key=lambda x: float(x['value']), reverse=reverse_sort)
+            
+            # Assign ranks after sorting
+            for idx, leader in enumerate(leaders):
+                leader['rank'] = idx + 1
+            
+            return leaders
             
         endpoint = "stats/leaders"
         params = {
@@ -265,9 +358,7 @@ class MLBDataFetcher:
             "limit": limit
         }
         
-        # Add optional filters
-        if team_id is not None:
-            params["teamId"] = team_id
+        # League ID is supported by the API
         if league_id is not None:
             params["leagueId"] = league_id
         

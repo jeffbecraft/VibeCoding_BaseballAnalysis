@@ -95,6 +95,7 @@ For best results:
 - **Specify team names** to filter by team (e.g., "Yankees", "Dodgers", "Orioles")
 - **Mention league** to filter by league (e.g., "American League", "National League", "AL", "NL")
 - If no year is specified, the current season is used
+- **Note**: When filtering by team or league, ALL players from that team/league are shown (limit is ignored)
 
 ## Technical Details
 

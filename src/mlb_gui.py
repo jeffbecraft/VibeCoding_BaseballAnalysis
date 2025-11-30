@@ -8,7 +8,7 @@ using natural language questions.
 import tkinter as tk
 from tkinter import ttk, scrolledtext, messagebox
 import re
-from typing import Optional, Dict, Tuple
+from typing import Optional, Dict, Tuple, List
 from data_fetcher import MLBDataFetcher
 from data_processor import MLBDataProcessor
 from helpers import get_team_name, get_current_season, TEAM_IDS, LEAGUE_IDS
@@ -217,7 +217,9 @@ class MLBQueryGUI:
         stat_group = "hitting"
         
         for term, api_name in self.STAT_MAPPINGS.items():
-            if term in query_lower:
+            # Use word boundaries to match complete words only
+            pattern = r'\b' + re.escape(term) + r'\b'
+            if re.search(pattern, query_lower):
                 stat_type = api_name
                 if api_name in self.PITCHING_STATS:
                     stat_group = "pitching"
@@ -225,36 +227,6 @@ class MLBQueryGUI:
         
         if not stat_type:
             return None
-        
-        # Extract player name (capitalized words, but not common query words)
-        # Remove query words first
-        query_words = {'where', 'did', 'rank', 'what', 'was', 'show', 'me', 'the', 'top',
-                       'who', 'are', 'in', 'for', 'find', 'leaders', 'ranking', 'get'}
-        
-        # Look for patterns like "Player Name's" or just capitalized names
-        name_patterns = [
-            r'\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)(?:\'s)?\b',  # Multi-word capitalized names
-            r'\b([A-Z][a-z]+)\s+([A-Z][a-z]+)\b'  # First Last name pattern
-        ]
-        
-        player_name = None
-        for pattern in name_patterns:
-            name_match = re.search(pattern, query)
-            if name_match:
-                potential_name = name_match.group(0).replace("'s", "").strip()
-                # Check if it's not a query word
-                if potential_name.lower().split()[0] not in query_words:
-                    player_name = potential_name
-                    break
-        
-        # Determine if it's a leaders query or player rank query
-        query_type = "rank" if player_name else "leaders"
-        
-        # Extract limit for leaders queries
-        limit = 10
-        limit_match = re.search(r'\btop\s+(\d+)\b', query_lower)
-        if limit_match:
-            limit = int(limit_match.group(1))
         
         # Extract team name
         team_id = None
@@ -275,6 +247,56 @@ class MLBQueryGUI:
             league_id = LEAGUE_IDS["National League"]
             league_name = "National League"
         
+        # Extract player name (capitalized words, but not common query words, teams, or leagues)
+        # Remove query words first
+        query_words = {'where', 'did', 'rank', 'what', 'was', 'show', 'me', 'the', 'top',
+                       'who', 'are', 'in', 'for', 'find', 'leaders', 'ranking', 'get', 'era',
+                       'rbi', 'mlb', 'season', 'year', 'player', 'players', 'stats', 'statistics'}
+        
+        # Words to exclude from player name matching
+        exclude_words = query_words.copy()
+        if team_name:
+            exclude_words.update(team_name.lower().split())
+        if league_name:
+            exclude_words.update(league_name.lower().split())
+        
+        # Look for patterns like "Player Name's", "First Last", or single last names
+        # Try multi-word patterns first, then single words
+        name_patterns = [
+            r'\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)(?:\'s)?\b',  # Multi-word capitalized names
+            r'\b([A-Z][a-z]+)\s+([A-Z][a-z]+)\b',  # First Last name pattern
+            r'\b([A-Z][a-z]{2,})(?:\'s)?\b'  # Single capitalized word (at least 3 letters, potential last name)
+        ]
+        
+        player_name = None
+        for pattern in name_patterns:
+            matches = re.finditer(pattern, query)
+            for name_match in matches:
+                potential_name = name_match.group(0).replace("'s", "").strip()
+                potential_name_lower = potential_name.lower()
+                
+                # Check if it's not a query word, team name, or league name
+                # For single words, be extra careful to exclude common words
+                words_in_name = potential_name_lower.split()
+                if all(word not in exclude_words for word in words_in_name):
+                    if (potential_name_lower != team_name.lower() if team_name else True and
+                        potential_name_lower != league_name.lower() if league_name else True and
+                        'league' not in potential_name_lower):
+                        player_name = potential_name
+                        break
+            
+            if player_name:
+                break
+        
+        # Determine if it's a leaders query or player rank query
+        query_type = "rank" if player_name else "leaders"
+        
+        # Extract limit for leaders queries
+        limit = 10
+        limit_match = re.search(r'\btop\s+(\d+)\b', query_lower)
+        if limit_match:
+            limit = int(limit_match.group(1))
+        
         return {
             'player_name': player_name,
             'stat_type': stat_type,
@@ -291,12 +313,12 @@ class MLBQueryGUI:
     def find_player_rank(self, player_name: str, stat_type: str, 
                         stat_group: str, year: int,
                         team_id: Optional[int] = None,
-                        league_id: Optional[int] = None) -> Optional[Dict]:
+                        league_id: Optional[int] = None) -> List[Dict]:
         """
         Find a player's rank in a specific statistic.
         
         Args:
-            player_name: Name of the player
+            player_name: Name of the player (can be full name or last name only)
             stat_type: Statistic type
             stat_group: 'hitting' or 'pitching'
             year: Season year
@@ -304,39 +326,89 @@ class MLBQueryGUI:
             league_id: Filter by league ID (optional)
             
         Returns:
-            Dictionary with rank information or None if not found
+            List of matching player dictionaries with rank information (empty if not found)
         """
-        # Get top 100 to have better chance of finding the player
+        # When filtering by team/league, get all players; otherwise limit to 500
+        limit = 500 if (team_id or league_id) else 500
+        
         leaders = self.fetcher.get_stats_leaders(
             stat_type=stat_type,
             season=year,
-            limit=100,
+            limit=limit,
             stat_group=stat_group,
             team_id=team_id,
             league_id=league_id
         )
         
-        if not leaders:
-            return None
+        matches = []
         
-        # Search for the player
-        name_lower = player_name.lower()
-        for leader in leaders:
-            person = leader.get('person', {})
-            full_name = person.get('fullName', '').lower()
+        if leaders:
+            # Search for the player in leaders
+            name_lower = player_name.lower().strip()
             
-            if name_lower in full_name or full_name in name_lower:
-                team = leader.get('team', {})
-                return {
-                    'rank': leader.get('rank'),
-                    'player_name': person.get('fullName'),
-                    'team': team.get('name', get_team_name(team.get('id'))),
-                    'value': leader.get('value'),
-                    'stat_type': stat_type,
-                    'year': year
-                }
+            for leader in leaders:
+                person = leader.get('person', {})
+                full_name = person.get('fullName', '')
+                full_name_lower = full_name.lower()
+                last_name = person.get('lastName', '').lower()
+                
+                # Match if:
+                # 1. Search term matches full name (substring)
+                # 2. Search term matches last name exactly (for last-name-only searches)
+                # 3. Full name contains search term as a word
+                if (name_lower in full_name_lower or 
+                    name_lower == last_name or
+                    full_name_lower in name_lower):
+                    
+                    team = leader.get('team', {})
+                    matches.append({
+                        'rank': leader.get('rank'),
+                        'player_name': full_name,
+                        'team': team.get('name', get_team_name(team.get('id'))),
+                        'value': leader.get('value'),
+                        'stat_type': stat_type,
+                        'year': year
+                    })
         
-        return None
+        # If no matches in leaders, try to find them directly via API search
+        if not matches:
+            players = self.fetcher.search_players(player_name)
+            
+            for player in players:
+                player_id = player.get('id')
+                full_name = player.get('fullName', '')
+                
+                # Get player's season stats
+                stats = self.fetcher.get_player_season_stats(player_id, year)
+                
+                if stats and 'stats' in stats:
+                    for stat_group_data in stats['stats']:
+                        group = stat_group_data.get('group', {}).get('displayName', '')
+                        
+                        if (stat_group == 'hitting' and group == 'hitting') or \
+                           (stat_group == 'pitching' and group == 'pitching'):
+                            
+                            splits = stat_group_data.get('splits', [])
+                            if splits:
+                                stat = splits[0].get('stat', {})
+                                value = stat.get(stat_type)
+                                
+                                if value is not None:
+                                    # Get player's team
+                                    team_info = splits[0].get('team', {})
+                                    
+                                    matches.append({
+                                        'rank': 'N/A',  # Not in top leaders
+                                        'player_name': full_name,
+                                        'team': team_info.get('name', 'N/A'),
+                                        'value': value,
+                                        'stat_type': stat_type,
+                                        'year': year,
+                                        'not_in_leaders': True
+                                    })
+                                    break
+        
+        return matches
     
     def get_stat_display_name(self, stat_type: str) -> str:
         """Get human-readable name for a stat type."""
@@ -386,8 +458,8 @@ class MLBQueryGUI:
             
             # Process based on query type
             if params['query_type'] == 'rank' and params['player_name']:
-                # Find player's rank
-                rank_info = self.find_player_rank(
+                # Find player's rank (returns list of matches)
+                matches = self.find_player_rank(
                     params['player_name'],
                     params['stat_type'],
                     params['stat_group'],
@@ -396,26 +468,58 @@ class MLBQueryGUI:
                     league_id=params['league_id']
                 )
                 
-                if rank_info:
-                    self.results_text.insert(tk.END, "🎯 Player Ranking:\n")
+                if matches:
+                    # Show results for all matching players
+                    if len(matches) == 1:
+                        self.results_text.insert(tk.END, "🎯 Player Ranking:\n")
+                    else:
+                        self.results_text.insert(tk.END, f"🎯 Found {len(matches)} Players Matching '{params['player_name']}':\n")
+                    
                     self.results_text.insert(tk.END, "=" * 60 + "\n")
-                    self.results_text.insert(tk.END, f"Player: {rank_info['player_name']}\n")
-                    self.results_text.insert(tk.END, f"Team: {rank_info['team']}\n")
-                    self.results_text.insert(tk.END, f"Rank: #{rank_info['rank']}\n")
-                    self.results_text.insert(tk.END, f"Value: {rank_info['value']}\n")
+                    
+                    for idx, rank_info in enumerate(matches):
+                        if idx > 0:
+                            self.results_text.insert(tk.END, "-" * 60 + "\n")
+                        
+                        self.results_text.insert(tk.END, f"Player: {rank_info['player_name']}\n")
+                        self.results_text.insert(tk.END, f"Team: {rank_info['team']}\n")
+                        
+                        if rank_info.get('not_in_leaders'):
+                            self.results_text.insert(tk.END, f"Rank: Not in top leaders\n")
+                        else:
+                            self.results_text.insert(tk.END, f"Rank: #{rank_info['rank']}\n")
+                        
+                        self.results_text.insert(tk.END, f"{self.get_stat_display_name(params['stat_type'])}: {rank_info['value']}\n")
+                    
                     self.results_text.insert(tk.END, "=" * 60 + "\n")
-                    self.status_var.set(f"Found {rank_info['player_name']} at rank #{rank_info['rank']}")
+                    
+                    if len(matches) == 1:
+                        status_msg = f"Found {matches[0]['player_name']}"
+                        if not matches[0].get('not_in_leaders'):
+                            status_msg += f" at rank #{matches[0]['rank']}"
+                    else:
+                        status_msg = f"Found {len(matches)} players matching '{params['player_name']}'"
+                    self.status_var.set(status_msg)
                 else:
+                    filter_context = ""
+                    if params['team_name']:
+                        filter_context = f" on the {params['team_name']}"
+                    elif params['league_name']:
+                        filter_context = f" in the {params['league_name']}"
+                    
                     self.results_text.insert(tk.END, f"❌ Could not find {params['player_name']} ")
-                    self.results_text.insert(tk.END, f"in the top 100 {self.get_stat_display_name(params['stat_type'])} ")
-                    self.results_text.insert(tk.END, f"leaders for {params['year']}.\n")
+                    self.results_text.insert(tk.END, f"in {self.get_stat_display_name(params['stat_type'])} ")
+                    self.results_text.insert(tk.END, f"leaders{filter_context} for {params['year']}.\n")
                     self.status_var.set("Player not found in leaders")
             else:
                 # Show leaders
+                # When filtering by team/league, get all players; otherwise use specified limit
+                actual_limit = 500 if (params['team_id'] or params['league_id']) else params['limit']
+                
                 leaders = self.fetcher.get_stats_leaders(
                     stat_type=params['stat_type'],
                     season=params['year'],
-                    limit=params['limit'],
+                    limit=actual_limit,
                     stat_group=params['stat_group'],
                     team_id=params['team_id'],
                     league_id=params['league_id']
@@ -424,8 +528,14 @@ class MLBQueryGUI:
                 if leaders:
                     leaders_df = self.processor.extract_stats_leaders(leaders)
                     
+                    # If filtered by team/league, show actual count instead of requested limit
+                    if params['team_id'] or params['league_id']:
+                        display_count = len(leaders_df)
+                    else:
+                        display_count = params['limit']
+                    
                     # Build title with filters
-                    title_parts = [f"Top {params['limit']}"]
+                    title_parts = [f"Top {display_count}"]
                     if params['team_name']:
                         title_parts.append(params['team_name'])
                     if params['league_name']:
@@ -437,7 +547,7 @@ class MLBQueryGUI:
                     self.results_text.insert(tk.END, "=" * 60 + "\n\n")
                     self.results_text.insert(tk.END, leaders_df.to_string(index=False))
                     self.results_text.insert(tk.END, "\n")
-                    self.status_var.set(f"Showing top {params['limit']} leaders")
+                    self.status_var.set(f"Showing {display_count} leaders")
                 else:
                     self.results_text.insert(tk.END, "❌ No data found for this query.\n")
                     self.status_var.set("No data found")
