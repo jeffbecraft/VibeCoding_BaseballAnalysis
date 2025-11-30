@@ -288,14 +288,22 @@ class MLBQueryGUI:
             if player_name:
                 break
         
-        # Determine if it's a leaders query or player rank query
-        query_type = "rank" if player_name else "leaders"
+        # Check if ranking is requested (look for ranking keywords)
+        ranking_keywords = ['rank', 'leader', 'leaders', 'top', 'best', 'worst', 'leading']
+        wants_ranking = any(keyword in query_lower for keyword in ranking_keywords)
+        
+        # Determine query type
+        query_type = "leaders"  # default
         
         # Check if this is a team ranking query
         team_ranking_keywords = ['teams', 'team', 'which team', 'what team']
         is_team_query = any(keyword in query_lower for keyword in team_ranking_keywords)
         if is_team_query and not player_name:
             query_type = "team_rank"
+        elif player_name and wants_ranking:
+            query_type = "rank"  # Player ranking query
+        elif player_name and not wants_ranking:
+            query_type = "player_stat"  # Just get the stat, no ranking
         
         # Extract limit for leaders queries
         limit = 10
@@ -415,6 +423,69 @@ class MLBQueryGUI:
         
         return matches
     
+    def get_player_stat_simple(self, player_name: str, stat_type: str,
+                               stat_group: str, year: int) -> List[Dict]:
+        """
+        Get a player's stat value without ranking (faster).
+        
+        Args:
+            player_name: Name of the player
+            stat_type: Statistic type
+            stat_group: 'hitting' or 'pitching'
+            year: Season year
+            
+        Returns:
+            List of matching player dictionaries with stat values (no ranking)
+        """
+        # Search for the player
+        players = self.fetcher.search_players(player_name)
+        
+        if not players:
+            return []
+        
+        matches = []
+        
+        for player in players:
+            player_id = player.get('id')
+            full_name = player.get('fullName', '')
+            last_name = player.get('lastName', '').lower()
+            player_name_lower = player_name.lower()
+            
+            # Check if this player matches the search
+            if not (player_name_lower in full_name.lower() or 
+                   player_name_lower == last_name):
+                continue
+            
+            # Get player's season stats
+            stats = self.fetcher.get_player_season_stats(player_id, year)
+            
+            if stats and 'stats' in stats:
+                for stat_group_data in stats['stats']:
+                    group = stat_group_data.get('group', {}).get('displayName', '')
+                    
+                    if (stat_group == 'hitting' and group == 'hitting') or \
+                       (stat_group == 'pitching' and group == 'pitching'):
+                        
+                        splits = stat_group_data.get('splits', [])
+                        if splits:
+                            stat = splits[0].get('stat', {})
+                            value = stat.get(stat_type)
+                            
+                            if value is not None:
+                                # Get player's team
+                                team_info = splits[0].get('team', {})
+                                
+                                matches.append({
+                                    'player_name': full_name,
+                                    'team': team_info.get('name', 'N/A'),
+                                    'value': value,
+                                    'stat_type': stat_type,
+                                    'year': year
+                                })
+                                break
+        
+        return matches
+    
     def get_stat_display_name(self, stat_type: str) -> str:
         """Get human-readable name for a stat type."""
         reverse_mapping = {v: k for k, v in self.STAT_MAPPINGS.items()}
@@ -489,6 +560,44 @@ class MLBQueryGUI:
                 else:
                     self.results_text.insert(tk.END, "❌ Could not fetch team statistics.\n")
                     self.status_var.set("Error fetching team stats")
+            
+            elif params['query_type'] == 'player_stat' and params['player_name']:
+                # Get player's stat without ranking (faster)
+                matches = self.get_player_stat_simple(
+                    params['player_name'],
+                    params['stat_type'],
+                    params['stat_group'],
+                    params['year']
+                )
+                
+                if matches:
+                    # Show results for all matching players
+                    if len(matches) == 1:
+                        self.results_text.insert(tk.END, "📊 Player Statistics:\n")
+                    else:
+                        self.results_text.insert(tk.END, f"📊 Found {len(matches)} Players Matching '{params['player_name']}':\n")
+                    
+                    self.results_text.insert(tk.END, "=" * 60 + "\n")
+                    
+                    for idx, stat_info in enumerate(matches):
+                        if idx > 0:
+                            self.results_text.insert(tk.END, "-" * 60 + "\n")
+                        
+                        self.results_text.insert(tk.END, f"Player: {stat_info['player_name']}\n")
+                        self.results_text.insert(tk.END, f"Team: {stat_info['team']}\n")
+                        self.results_text.insert(tk.END, f"{self.get_stat_display_name(params['stat_type'])}: {stat_info['value']}\n")
+                    
+                    self.results_text.insert(tk.END, "=" * 60 + "\n")
+                    
+                    if len(matches) == 1:
+                        status_msg = f"Found {matches[0]['player_name']}'s stats"
+                    else:
+                        status_msg = f"Found {len(matches)} players matching '{params['player_name']}'"
+                    self.status_var.set(status_msg)
+                else:
+                    self.results_text.insert(tk.END, f"❌ Could not find {params['player_name']} ")
+                    self.results_text.insert(tk.END, f"for {params['year']}.\n")
+                    self.status_var.set("Player not found")
                     
             elif params['query_type'] == 'rank' and params['player_name']:
                 # Find player's rank (returns list of matches)
