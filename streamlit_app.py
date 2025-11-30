@@ -877,8 +877,10 @@ with st.sidebar:
     # Cache stats
     if health_status['cache']['enabled']:
         cache_stats = health_status['cache']['stats']
-        st.metric("Cache Hit Rate", f"{cache_stats.get('hit_rate', 0):.1f}%")
-        st.caption(f"Total requests: {cache_stats.get('total_requests', 0)}")
+        valid_entries = cache_stats.get('valid_entries', 0)
+        total_entries = cache_stats.get('total_entries', 0)
+        st.metric("Cached Entries", f"{valid_entries}")
+        st.caption(f"Total: {total_entries} | Size: {cache_stats.get('total_size_mb', 0)} MB")
     
     # AI status
     if health_status['ai']['available']:

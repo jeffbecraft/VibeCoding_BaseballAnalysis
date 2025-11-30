@@ -377,12 +377,14 @@ You have access to:
 1. data_fetcher - An MLBDataFetcher instance with methods:
    - get_teams(season) -> list of teams for a season
    - search_players(name) -> list of players matching name (finds active and retired players)
-   - get_player_season_stats(player_id, season) -> player stats for specific season
+   - get_player_season_stats(player_id, season) -> ONLY 2 ARGS! Returns player stats for specific season (both hitting and pitching)
    - get_team_season_stats(team_id, season, stat_group='hitting') -> team stats for specific season
    - get_player_career_stats(player_id, stat_group) -> list of dicts with stats for each season
    - get_team_career_stats(team_id, stat_group, start_year, end_year) -> list of dicts with stats for each season
    - get_stats_leaders(stat_type, season, limit, stat_group, team_id=None, league_id=None, include_all=False) -> league leaders
    - get_team_stats(season, stat_group='hitting') -> stats for all MLB teams in a season
+   
+CRITICAL: get_player_season_stats() takes ONLY player_id and season (2 arguments). Do NOT pass stat_group!
 
 2. data_processor - An MLBDataProcessor instance with methods:
    - extract_stats_leaders(data) -> DataFrame with ranked leaders
