@@ -20,6 +20,7 @@ from data_processor import MLBDataProcessor
 from helpers import get_team_name, get_current_season, TEAM_IDS, LEAGUE_IDS
 from stat_constants import STAT_MAPPINGS, PITCHING_STATS
 from ai_query_handler import AIQueryHandler
+from github_issue_reporter import GitHubIssueReporter
 from logger import get_logger
 import re
 from typing import Optional, Dict
@@ -86,6 +87,8 @@ if 'fetcher' not in st.session_state:
         st.session_state.fetcher,
         st.session_state.processor
     )
+    # Initialize GitHub issue reporter
+    st.session_state.issue_reporter = GitHubIssueReporter()
 
 def get_health_status() -> Dict:
     """
@@ -1006,6 +1009,124 @@ with st.sidebar:
     if st.button("🗑️ Clear Cache"):
         st.session_state.fetcher.clear_cache()
         st.success("Cache cleared successfully!")
+    
+    st.divider()
+    
+    # Feedback / Issue Reporting
+    st.header("💬 Report an Issue")
+    
+    if st.session_state.issue_reporter.is_available():
+        st.caption("Issues are automatically logged to GitHub")
+        
+        with st.expander("📝 Submit Feedback"):
+            feedback_type = st.selectbox(
+                "Type",
+                ["Bug Report", "Feature Request", "General Feedback"],
+                key="feedback_type"
+            )
+            
+            if feedback_type == "Bug Report":
+                st.text_area(
+                    "What went wrong?",
+                    placeholder="Describe the bug...",
+                    key="bug_description",
+                    height=100
+                )
+                st.text_input(
+                    "Query (if applicable)",
+                    placeholder="The question you asked...",
+                    key="bug_query"
+                )
+                st.text_input(
+                    "Your email (optional, for follow-up)",
+                    placeholder="your.email@example.com",
+                    key="bug_email"
+                )
+                
+                if st.button("Submit Bug Report", key="submit_bug"):
+                    description = st.session_state.get('bug_description', '').strip()
+                    if description:
+                        result = st.session_state.issue_reporter.create_bug_report(
+                            description=description,
+                            query=st.session_state.get('bug_query'),
+                            user_email=st.session_state.get('bug_email')
+                        )
+                        if result['success']:
+                            st.success(f"✅ {result['message']}")
+                            st.info(f"[View issue]({result['url']})")
+                        else:
+                            st.error(f"❌ {result['message']}")
+                    else:
+                        st.warning("Please describe the bug")
+            
+            elif feedback_type == "Feature Request":
+                st.text_input(
+                    "Feature title",
+                    placeholder="Brief feature name...",
+                    key="feature_title"
+                )
+                st.text_area(
+                    "Description",
+                    placeholder="Describe the feature you'd like...",
+                    key="feature_description",
+                    height=100
+                )
+                st.text_input(
+                    "Your email (optional)",
+                    placeholder="your.email@example.com",
+                    key="feature_email"
+                )
+                
+                if st.button("Submit Feature Request", key="submit_feature"):
+                    title = st.session_state.get('feature_title', '').strip()
+                    description = st.session_state.get('feature_description', '').strip()
+                    if title and description:
+                        result = st.session_state.issue_reporter.create_feature_request(
+                            title=title,
+                            description=description,
+                            user_email=st.session_state.get('feature_email')
+                        )
+                        if result['success']:
+                            st.success(f"✅ {result['message']}")
+                            st.info(f"[View issue]({result['url']})")
+                        else:
+                            st.error(f"❌ {result['message']}")
+                    else:
+                        st.warning("Please provide title and description")
+            
+            else:  # General Feedback
+                st.text_area(
+                    "Your feedback",
+                    placeholder="Tell us what you think...",
+                    key="general_feedback",
+                    height=100
+                )
+                st.text_input(
+                    "Your email (optional)",
+                    placeholder="your.email@example.com",
+                    key="general_email"
+                )
+                
+                if st.button("Submit Feedback", key="submit_general"):
+                    feedback = st.session_state.get('general_feedback', '').strip()
+                    if feedback:
+                        result = st.session_state.issue_reporter.create_general_feedback(
+                            feedback=feedback,
+                            user_email=st.session_state.get('general_email')
+                        )
+                        if result['success']:
+                            st.success(f"✅ {result['message']}")
+                            st.info(f"[View issue]({result['url']})")
+                        else:
+                            st.error(f"❌ {result['message']}")
+                    else:
+                        st.warning("Please provide your feedback")
+    else:
+        st.info("""
+        📧 To report issues, please:
+        - Email: jeffbecraft@gmail.com
+        - GitHub: [Create an issue](https://github.com/jeffbecraft/VibeCoding_BaseballAnalysis/issues)
+        """)
     
     st.divider()
     

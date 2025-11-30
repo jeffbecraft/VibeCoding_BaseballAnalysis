@@ -2,6 +2,149 @@
 
 Simple guide to set up FREE uptime monitoring for your MLB Statistics application.
 
+## ⚠️ IMPORTANT: Serverless Considerations
+
+**If deploying to serverless platforms** (Streamlit Cloud, AWS Lambda, Cloud Run, Vercel):
+- Apps **scale to zero** when not in use to save resources
+- Traditional uptime monitoring **wakes up the app** constantly
+- This defeats serverless benefits (cost savings, efficiency)
+
+### Recommended Approaches for Serverless:
+
+1. ✅ **User-Triggered Monitoring Only**
+   - Monitor actual user traffic (via Sentry, CloudWatch)
+   - Get alerts on **real user errors**, not synthetic checks
+   - Let app sleep when unused
+
+2. ✅ **Selective Health Checks**
+   - Only ping during **business hours** (when users expected)
+   - Use longer intervals (30-60 minutes instead of 5)
+   - Accept that app may be "down" (sleeping) outside hours
+
+3. ✅ **Real User Monitoring (RUM)**
+   - Track actual user experience
+   - No synthetic pings
+   - See `src/monitoring.py` for Sentry RUM
+
+4. ⚠️ **Traditional Uptime Monitoring** (See below)
+   - Use ONLY for always-on deployments
+   - NOT recommended for serverless
+   - Will increase costs and prevent scaling to zero
+
+---
+
+## Choose Your Deployment Type
+
+### Serverless Deployments
+**Platforms:** Streamlit Cloud, AWS Lambda, Cloud Run, Vercel, Netlify Functions
+
+✅ **Recommended:** Real User Monitoring (Sentry)  
+⚠️ **NOT Recommended:** Traditional uptime pings
+
+**Skip to:** [Serverless Monitoring Strategy](#serverless-monitoring-strategy)
+
+### Always-On Deployments
+**Platforms:** EC2, ECS, VPS, Dedicated Servers, Docker on VM
+
+✅ **Recommended:** Traditional uptime monitoring  
+✅ **Also Use:** Real User Monitoring (Sentry)
+
+**Continue to:** Traditional monitoring options below
+
+---
+
+## Serverless Monitoring Strategy
+
+### Best Practices for Serverless:
+
+#### 1. **Use Sentry for Real User Monitoring** ✅ RECOMMENDED
+
+Already integrated in `streamlit_app.py`!
+
+```bash
+# 1. Install Sentry SDK
+pip install sentry-sdk
+
+# 2. Sign up at sentry.io (FREE tier)
+# 3. Add to .env:
+SENTRY_DSN=https://your_key@sentry.io/project
+
+# 4. Run setup wizard:
+python setup_production_env.py
+```
+
+**What You Get:**
+- ✅ Real user error tracking
+- ✅ Performance monitoring
+- ✅ No synthetic pings (app sleeps normally)
+- ✅ Alerts on actual issues
+- ✅ User session tracking
+
+**Sentry tracks:**
+- Errors when users actually visit
+- Performance during real usage
+- Query execution times
+- Cache hit rates
+- NO false alerts from sleeping app
+
+#### 2. **Platform-Native Monitoring**
+
+**Streamlit Cloud:**
+```
+Built-in monitoring dashboard:
+- View logs in Streamlit Cloud UI
+- Track deployments
+- No extra setup needed
+- Free with your deployment
+```
+
+**AWS Lambda/App Runner:**
+```bash
+# CloudWatch automatically tracks:
+- Invocation count
+- Errors
+- Duration
+- Throttles
+
+# View in AWS Console:
+CloudWatch → Logs → /aws/lambda/your-function
+```
+
+**Google Cloud Run:**
+```bash
+# Cloud Logging tracks:
+- Request count
+- Latency
+- Error rate
+- CPU/Memory usage
+
+# View in GCP Console:
+Cloud Run → Your Service → Logs
+```
+
+#### 3. **Conditional Health Checks** (Advanced)
+
+If you MUST use uptime monitoring with serverless:
+
+```yaml
+# UptimeRobot Configuration for Serverless
+
+Monitor Type: HTTP(s)
+URL: https://your-app/_stcore/health
+Interval: 60 minutes  # NOT 5 minutes!
+Monitor Only: Business hours (9 AM - 6 PM Mon-Fri)
+Expected Downtime: 
+  - Nights: 6 PM - 9 AM
+  - Weekends: All day
+```
+
+**Limitations:**
+- App won't truly scale to zero (woken hourly)
+- Increased costs (compute time)
+- Defeats serverless benefits
+
+---
+
 ## Why Uptime Monitoring?
 
 - Get alerts when your app goes down
@@ -9,11 +152,14 @@ Simple guide to set up FREE uptime monitoring for your MLB Statistics applicatio
 - Response time tracking
 - FREE tier available for most services
 
+**⚠️ For Always-On Deployments Only**
+
 ---
 
-## Option 1: UptimeRobot (Recommended - FREE)
+## Option 1: UptimeRobot (For Always-On Deployments)
 
-**Best for:** Simple, free, easy setup
+**Best for:** Traditional hosting, VPS, EC2, dedicated servers  
+**⚠️ NOT for:** Serverless platforms (use Sentry instead)
 
 ### Setup Steps (5 minutes):
 
@@ -315,22 +461,59 @@ Uptime (30 days): 99.9%
 
 ## Quick Start Checklist
 
-- [ ] Sign up for UptimeRobot (or preferred service)
-- [ ] Add monitor for your app URL
-- [ ] Add health endpoint: `/_stcore/health`
-- [ ] Configure email alerts
-- [ ] Test by triggering alert (stop app temporarily)
-- [ ] Verify alert received
-- [ ] Set up weekly reports
-- [ ] Share status page with team (optional)
+### For Serverless (Streamlit Cloud, Lambda, Cloud Run):
 
----
-
+- [ ] ✅ **Use Sentry** (Real User Monitoring)
+  - [ ] Install: `pip install sentry-sdk`
+  - [ ] Run: `python setup_production_env.py`
+  - [ ] Add Sentry DSN to `.env`
+  - [ ] Deploy and verify errors captured
+- [ ] ✅ **Check Platform Logs**
+  - [ ] Streamlit Cloud: View logs in dashboard
+  - [ ] AWS: CloudWatch logs
+  - [ ] GCP: Cloud Logging
 ## Next Steps
 
-1. ✅ **Complete this setup** (5 minutes)
-2. 📊 **Review weekly reports** to track uptime
-3. 🔍 **Investigate any downtime** immediately
+### For Serverless:
+
+1. ✅ **Install Sentry** (5 minutes)
+   ```bash
+   pip install sentry-sdk
+   python setup_production_env.py
+   ```
+
+2. 📊 **Monitor real user errors** in Sentry dashboard
+3. 🔍 **Check platform logs** for deployment issues
+4. 📈 **Track performance** via Sentry RUM
+5. 😴 **Let app sleep** when not in use (cost savings!)
+
+### For Always-On:
+
+1. ✅ **Set up UptimeRobot** (5 minutes)
+2. ✅ **Add Sentry** for error tracking
+3. 📊 **Review weekly uptime reports**
+4. 🔍 **Investigate any downtime** immediately
+5. 📈 **Track response times** for performance
+6. 🎯 **Aim for 99.9% uptime** (< 45 min downtime/month)
+
+--- ] Add health endpoint: `/_stcore/health`
+- [ ] Configure email alerts (5-minute interval OK)
+- [ ] Test by triggering alert (stop app temporarily)
+- [ ] Verify alert received
+## Cost Summary
+
+| Service | Free Tier | Paid Plans | Best For |
+|---------|-----------|------------|----------|
+| **Sentry** | 5K errors/mo | $26/mo | **Serverless** (Recommended) |
+| **Platform Logs** | Included | Included | **Serverless** (Built-in) |
+| **UptimeRobot** | 50 monitors, 5min | $7/mo | **Always-On** |
+| **Pingdom** | 14-day trial | $10/mo | **Always-On** |
+| **Better Uptime** | 10 monitors, 3min | $25/mo | **Always-On** |
+| **Healthchecks.io** | 20 checks | $5/mo | **Always-On** |
+| **AWS CloudWatch** | Limited free tier | ~$0.10/mo | **AWS Lambda** |
+
+**Serverless Recommendation:** Sentry FREE tier + Platform logs  
+**Always-On Recommendation:** UptimeRobot FREE + Sentry
 4. 📈 **Track response times** for performance
 5. 🎯 **Aim for 99.9% uptime** (< 45 min downtime/month)
 
