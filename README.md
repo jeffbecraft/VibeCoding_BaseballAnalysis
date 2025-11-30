@@ -1,6 +1,25 @@
 # MLB Statistics Analysis System
 
-A comprehensive Python-based system for fetching, processing, and analyzing Major League Baseball statistics.
+A comprehensive Python-based system for fetching, processing, and analyzing Major League Baseball statistics. Available as both a **desktop application** and a **web application** for easy sharing!
+
+## 🌟 New: Web Application!
+
+**Share MLB stats with anyone via a simple URL!** The web version is now available and can be deployed for free to Streamlit Cloud.
+
+👉 **[Quick Deployment Guide](DEPLOY_NOW.md)** | **[Full Deployment Guide](DEPLOYMENT_GUIDE.md)** | **[Web App Summary](WEB_APP_SUMMARY.md)**
+
+### Web App Features
+- ⚾ No installation required - just open a URL
+- 📱 Works on any device (desktop, tablet, mobile)
+- 🔗 Share with family and friends
+- 🆓 FREE hosting on Streamlit Cloud
+- ⚡ Same natural language queries as desktop version
+- 📊 Download results as CSV
+
+**Launch Web Version Locally:**
+```bash
+python -m streamlit run streamlit_app.py
+```
 
 ## Features
 
@@ -11,8 +30,11 @@ A comprehensive Python-based system for fetching, processing, and analyzing Majo
 - **Player Comparison**: Compare multiple players across various metrics
 - **Team Analysis**: Analyze team performance and trends
 - **Natural Language GUI**: Query MLB statistics using natural language questions
+- **Web Application**: Browser-based interface for remote access and sharing
 - **Stats Leaders**: Find top 50 players in any statistical category
 - **Team & League Filtering**: Filter stats by specific teams or leagues (AL/NL)
+- **Caching System**: Smart caching to reduce API calls and improve performance
+- **Regression Testing**: Comprehensive test suite to ensure reliability
 
 ## Project Structure
 
@@ -20,19 +42,28 @@ A comprehensive Python-based system for fetching, processing, and analyzing Majo
 VibeCoding_BaseballAnalysis/
 ├── data/               # Raw and processed data storage
 │   ├── raw/           # Raw data from APIs
-│   └── processed/     # Cleaned and processed data
+│   ├── processed/     # Cleaned and processed data
+│   └── cache/         # Cache directory for API responses
 ├── src/               # Source code
 │   ├── data_fetcher.py      # MLB API data fetching
 │   ├── data_processor.py    # Data cleaning and transformation
 │   ├── analytics.py         # Statistical analysis functions
-│   └── visualizations.py    # Plotting and visualization
-├── notebooks/         # Jupyter notebooks for analysis
-├── utils/            # Utility functions
+│   ├── visualizations.py    # Plotting and visualization
+│   ├── mlb_gui.py          # Desktop GUI application
+│   └── helpers.py          # Utility functions
+├── utils/            # Utility modules
+│   └── cache.py      # Caching system
+├── tests/            # Test suite
+├── notebooks/        # Jupyter notebooks for analysis
+├── streamlit_app.py  # Web application
 ├── requirements.txt  # Python dependencies
+├── requirements_web.txt  # Web app dependencies
 └── README.md        # This file
 ```
 
 ## Installation
+
+### Desktop Version
 
 1. Clone or navigate to this directory
 2. Install dependencies:
@@ -40,9 +71,43 @@ VibeCoding_BaseballAnalysis/
 pip install -r requirements.txt
 ```
 
+### Web Version
+
+1. Install web dependencies:
+```bash
+pip install -r requirements_web.txt
+```
+
+2. Run locally:
+```bash
+python -m streamlit run streamlit_app.py
+```
+
+3. Deploy to cloud (FREE):
+   - See [DEPLOY_NOW.md](DEPLOY_NOW.md) for quick start
+   - See [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) for detailed instructions
+
 ## Usage
 
-### Natural Language Query GUI
+### Web Application (Recommended for Sharing)
+
+**Local Testing:**
+```bash
+python -m streamlit run streamlit_app.py
+```
+Then open http://localhost:8501 in your browser.
+
+**Cloud Deployment:**
+Follow the guide in [DEPLOY_NOW.md](DEPLOY_NOW.md) to deploy to Streamlit Cloud in 5 minutes.
+
+Example questions in the web app:
+- "Top 10 home runs in 2024"
+- "What was Aaron Judge's batting average in 2024?"
+- "Rank Shohei Ohtani's ERA"
+- "Yankees home run leaders"
+- "Which team had the best ERA in 2024?"
+
+### Natural Language Query GUI (Desktop)
 
 Launch the graphical interface to ask questions in plain English:
 
@@ -121,12 +186,38 @@ Check out the `notebooks/example_analysis.ipynb` for a complete walkthrough of t
 
 ## Dependencies
 
+### Core Dependencies
 - pandas: Data manipulation and analysis
 - numpy: Numerical computing
 - requests: HTTP requests for API calls
+
+### Desktop Application
 - matplotlib: Basic plotting
 - seaborn: Statistical visualizations
 - jupyter: Interactive notebooks
+- tkinter: Desktop GUI (included with Python)
+
+### Web Application
+- streamlit: Web application framework
+
+## Testing
+
+Run the comprehensive regression test suite:
+
+```bash
+python run_tests.py
+```
+
+See [TESTING_SUMMARY.md](TESTING_SUMMARY.md) for details on the test suite.
+
+## Documentation
+
+- **[GUI Guide](GUI_GUIDE.md)**: Complete guide to the desktop GUI
+- **[Web App Summary](WEB_APP_SUMMARY.md)**: Overview of the web application
+- **[Deploy Now](DEPLOY_NOW.md)**: Quick deployment to Streamlit Cloud
+- **[Deployment Guide](DEPLOYMENT_GUIDE.md)**: Detailed deployment instructions
+- **[Testing Summary](TESTING_SUMMARY.md)**: Test suite documentation
+- **[Team/League Filtering](TEAM_LEAGUE_FILTERING.md)**: Filtering documentation
 
 ## API Reference
 
