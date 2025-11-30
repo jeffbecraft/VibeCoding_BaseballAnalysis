@@ -21,8 +21,13 @@ import os
 import sys
 import json
 import re
+import time
 from typing import Dict, Any, Optional, Tuple
 import traceback
+
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from utils.ai_code_cache import AICodeCache
 
 
 class AIQueryHandler:
@@ -46,6 +51,9 @@ class AIQueryHandler:
         self.ollama = None
         self.model = None
         self.ai_available = False
+        
+        # Initialize code cache
+        self.code_cache = AICodeCache()
         
         # Auto-detect or use specified provider
         if provider == "auto":
@@ -156,6 +164,30 @@ class AIQueryHandler:
             }
         
         try:
+            # Step 0: Check code cache
+            cached_entry = self.code_cache.get(question, season)
+            if cached_entry:
+                report_progress("Step 0", "Found cached code from previous query (skipping AI generation)...")
+                code = cached_entry['code']
+                
+                # Execute cached code
+                report_progress("Step 1", "Executing cached code...")
+                start_time = time.time()
+                result = self._execute_code(code, question, season)
+                execution_time = time.time() - start_time
+                
+                if result.get('success'):
+                    result['cached'] = True
+                    result['steps'] = [
+                        "✓ Found cached code from previous similar query",
+                        "✓ Skipped AI generation (saved 2-5 seconds!)",
+                        f"✓ Executed cached code in {execution_time:.2f}s",
+                        "✓ Query completed successfully"
+                    ]
+                    result['code'] = code
+                    report_progress("Complete", f"Query completed using cache in {execution_time:.2f}s!")
+                return result
+            
             # Step 1: Send question to AI
             report_progress("Step 1", f"Sending your question to {self.provider.upper()} AI model ({self.model})...")
             code = self._generate_code(question, season)
@@ -186,16 +218,22 @@ class AIQueryHandler:
             report_progress("Step 3", "Code passed security checks. Executing query against MLB API...")
             
             # Step 3: Execute the code
+            start_time = time.time()
             result = self._execute_code(code, question, season)
+            execution_time = time.time() - start_time
             
             # Add steps to result
             if result.get('success'):
+                # Cache the successful code
+                self.code_cache.set(question, season, code, success=True, execution_time=execution_time)
+                
+                result['cached'] = False
                 result['steps'] = [
                     f"✓ AI ({self.provider}) interpreted your question",
                     "✓ Generated Python code to query MLB API",
                     "✓ Code passed security validation",
-                    "✓ Executed query and retrieved data",
-                    "✓ Processed results successfully"
+                    f"✓ Executed query in {execution_time:.2f}s and retrieved data",
+                    "✓ Cached code for future queries"
                 ]
                 report_progress("Complete", "Query completed successfully!")
             else:
@@ -696,6 +734,24 @@ Generate Python code to answer this question using the MLB API."""
                 'success': False,
                 'message': f'Connection failed: {str(e)}'
             }
+    
+    def get_code_cache_stats(self) -> Dict[str, Any]:
+        """
+        Get AI code cache statistics.
+        
+        Returns:
+            Dictionary with cache statistics including hit count and popular queries
+        """
+        return self.code_cache.get_stats()
+    
+    def clear_code_cache(self) -> int:
+        """
+        Clear the AI code cache.
+        
+        Returns:
+            Number of cache entries removed
+        """
+        return self.code_cache.clear()
 
 
 def get_ai_handler(data_fetcher, data_processor) -> Optional[AIQueryHandler]:
