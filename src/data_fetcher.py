@@ -40,12 +40,6 @@ class MLBDataFetcher:
         except requests.exceptions.RequestException as e:
             print(f"Error fetching data from {url}: {e}")
             return {}
-            
-        except requests.exceptions.RequestException as e:
-            # If something went wrong (like no internet connection or bad URL),
-            # print an error message and return an empty dictionary
-            print(f"Error fetching data from {url}: {e}")
-            return {}t to the MLB Stats API.
         
     def get_player_stats(self, player_id: int, season: int, 
                         stat_group: str = "hitting") -> Dict:
@@ -53,22 +47,6 @@ class MLBDataFetcher:
         Get player statistics for a specific season.
         
         Args:
-            player_id: MLB player ID
-            season: Season year
-            stat_group: Type of stats ('hitting', 'pitching', 'fielding')
-            
-        Returns:
-            Dictionary containing player statistics
-        """
-        endpoint = f"people/{player_id}"
-        params = {
-            "hydrate": f"stats(group=[{stat_group}],type=[yearByYear])"
-        }
-        data = self._make_request(endpoint, params)
-        
-        if data and "people" in data and len(data["people"]) > 0:
-            return data["people"][0]
-        return {}
             player_id: MLB player ID
             season: Season year
             stat_group: Type of stats ('hitting', 'pitching', 'fielding')
