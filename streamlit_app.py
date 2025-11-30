@@ -164,6 +164,10 @@ class StreamlitMLBQuery:
                 ranking_keywords = ['rank', 'leader', 'leaders', 'top', 'best', 'worst']
                 wants_ranking = any(keyword in query_lower for keyword in ranking_keywords)
                 
+                # Check for comparison queries
+                comparison_keywords = ['compare', 'versus', 'vs', 'vs.', 'against', 'better than', 'worse than']
+                is_comparison = any(keyword in query_lower for keyword in comparison_keywords)
+                
                 # Career-specific query types
                 if is_career_query:
                     if player_name:
@@ -181,6 +185,8 @@ class StreamlitMLBQuery:
                     
                     if is_team_level_query and not player_name:
                         query_type = "team_rank"
+                    elif is_comparison and stat_type:
+                        query_type = "comparison"
                     elif player_name and wants_ranking:
                         query_type = "rank"
                     elif player_name and not wants_ranking:
@@ -263,10 +269,12 @@ class StreamlitMLBQuery:
         try:
             if query_type == 'team_rank':
                 return self._handle_team_ranking(parsed)
+            elif query_type == 'comparison':
+                return self._handle_comparison(parsed)
             elif query_type == 'rank':
                 return self._handle_player_ranking(parsed)
             elif query_type == 'player_stat':
-                return self._handle_player_stat(parsed)
+                return self._handle_player_stat(parsed, show_context=True)
             elif query_type == 'player_career':
                 return self._handle_player_career(parsed)
             elif query_type == 'team_career':
@@ -339,7 +347,7 @@ class StreamlitMLBQuery:
         
         return leaders_df, None
     
-    def _handle_player_stat(self, parsed):
+    def _handle_player_stat(self, parsed, show_context=False):
         """Handle individual player stat query."""
         player_results = self.fetcher.search_players(parsed['player_name'])
         
@@ -375,6 +383,26 @@ class StreamlitMLBQuery:
             'value': stat_value,
             'year': parsed['year']
         }
+        
+        # If show_context is True, also get league leaders to show ranking
+        if show_context:
+            leaders_data = self.fetcher.get_stats_leaders(
+                parsed['stat_type'],
+                season=parsed['year'],
+                limit=50,
+                stat_group=parsed['stat_group'],
+                team_id=parsed.get('team_id'),
+                league_id=parsed.get('league_id')
+            )
+            
+            if leaders_data:
+                leaders_df = self.processor.extract_stats_leaders(leaders_data)
+                if not leaders_df.empty:
+                    # Find player's rank
+                    player_rank_row = leaders_df[leaders_df['playerName'].str.contains(parsed['player_name'], case=False, na=False)]
+                    if not player_rank_row.empty:
+                        result_dict['rank'] = player_rank_row.iloc[0]['rank']
+                        result_dict['leaders_context'] = leaders_df.head(20)  # Show top 20 for context
         
         return result_dict, None
     
@@ -449,6 +477,38 @@ class StreamlitMLBQuery:
             return None, "No team rankings available."
         
         return teams_df, None
+    
+    def _handle_comparison(self, parsed):
+        """Handle comparison queries - show rankings with both entities highlighted."""
+        import pandas as pd
+        
+        # Get all leaders for the stat
+        stats_data = self.fetcher.get_stats_leaders(
+            parsed['stat_type'],
+            season=parsed['year'],
+            limit=100,
+            stat_group=parsed['stat_group'],
+            team_id=parsed.get('team_id'),
+            league_id=parsed.get('league_id'),
+            include_all=True
+        )
+        
+        if not stats_data:
+            return None, "No data found for comparison."
+        
+        leaders_df = self.processor.extract_stats_leaders(stats_data)
+        
+        if leaders_df.empty:
+            return None, "No leaders found for this statistic."
+        
+        # Return ranked list with comparison flag
+        return {
+            'type': 'comparison_ranking',
+            'data': leaders_df,
+            'stat': self.parser.get_stat_display_name(parsed['stat_type']),
+            'year': parsed['year'],
+            'search_term': parsed.get('player_name', '')
+        }, None
     
     def _handle_player_career(self, parsed):
         """Handle player career statistics query."""
@@ -577,6 +637,8 @@ with st.sidebar:
     - **"What are Aaron Judge's career home runs?"**
     - **"Show me Derek Jeter's career stats"**
     - **"Yankees career wins"**
+    - **"Compare Aaron Judge vs Juan Soto home runs"**
+    - **"Ohtani versus Trout batting average"**
     
     **Supported statistics:**
     - Hitting: HR, RBI, AVG, Hits, Runs, SB, OBP, SLG, OPS
@@ -585,6 +647,10 @@ with st.sidebar:
     **New: Career Stats!**
     - Use "career" in your query to get all-time totals
     - Works for both players and teams
+    
+    **New: Comparisons!**
+    - Use "compare", "vs", or "versus" to see ranked results
+    - Both players/teams shown in context of league leaders
     """)
     
     st.divider()
@@ -737,8 +803,34 @@ if query:
             
             # Display results based on type
             elif isinstance(result, dict):
+                # Check for comparison ranking view
+                if result.get('type') == 'comparison_ranking':
+                    st.markdown(f"### {result['stat']} Leaders - {result['year']}")
+                    st.caption("Showing ranked results for comparison")
+                    
+                    # Highlight search term if provided
+                    df = result['data']
+                    if result.get('search_term'):
+                        st.info(f"Looking for players matching: **{result['search_term']}**")
+                    
+                    # Display with highlighting
+                    st.dataframe(
+                        df.head(50),  # Show top 50
+                        width='stretch',
+                        hide_index=True
+                    )
+                    
+                    # Download button
+                    csv = df.to_csv(index=False)
+                    st.download_button(
+                        label="📥 Download Rankings as CSV",
+                        data=csv,
+                        file_name=f"{result['stat']}_rankings_{result['year']}.csv",
+                        mime="text/csv"
+                    )
+                
                 # Check if it's a career breakdown
-                if result.get('type') == 'career_breakdown':
+                elif result.get('type') == 'career_breakdown':
                     st.markdown(f"### Career Statistics for {result['player']}")
                     
                     # Show season-by-season breakdown
@@ -803,10 +895,29 @@ if query:
                     # Single player stat or ranking
                     st.markdown("### Results")
                     
-                    cols = st.columns(len(result))
-                    for i, (key, value) in enumerate(result.items()):
-                        with cols[i]:
-                            st.metric(label=key.replace('_', ' ').title(), value=value)
+                    # Check if there's leaders context to show
+                    if 'leaders_context' in result:
+                        # Show player's stat prominently
+                        metrics_to_show = {k: v for k, v in result.items() if k not in ['leaders_context']}
+                        cols = st.columns(len(metrics_to_show))
+                        for i, (key, value) in enumerate(metrics_to_show.items()):
+                            with cols[i]:
+                                st.metric(label=key.replace('_', ' ').title(), value=value)
+                        
+                        # Show ranking context
+                        st.markdown("#### League Context")
+                        st.caption(f"Top players in {result.get('stat', 'this statistic')} - {result.get('year', '')}")
+                        st.dataframe(
+                            result['leaders_context'],
+                            width='stretch',
+                            hide_index=True
+                        )
+                    else:
+                        # Just show metrics
+                        cols = st.columns(len(result))
+                        for i, (key, value) in enumerate(result.items()):
+                            with cols[i]:
+                                st.metric(label=key.replace('_', ' ').title(), value=value)
             else:
                 # DataFrame results (leaders or team rankings)
                 st.markdown("### Results")

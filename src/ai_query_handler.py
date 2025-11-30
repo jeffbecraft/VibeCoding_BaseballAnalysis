@@ -344,6 +344,41 @@ except Exception as e:
     result = {'success': False, 'error': str(e)}
 ```
 
+Example 4 (Season Comparison with Ranking):
+Question: "Compare Aaron Judge vs Juan Soto home runs in 2024"
+Code:
+```python
+try:
+    # Get leaders to show both in context
+    leaders = data_fetcher.get_stats_leaders('homeRuns', season, 50, 'hitting')
+    leaders_df = data_processor.extract_stats_leaders(leaders)
+    
+    if leaders_df.empty:
+        result = {'success': False, 'error': 'No leaders data found'}
+    else:
+        # Find both players
+        judge_row = leaders_df[leaders_df['playerName'].str.contains('Judge', case=False, na=False)]
+        soto_row = leaders_df[leaders_df['playerName'].str.contains('Soto', case=False, na=False)]
+        
+        comparison_text = ""
+        if not judge_row.empty and not soto_row.empty:
+            judge_rank = judge_row.iloc[0]['rank']
+            judge_hrs = judge_row.iloc[0]['value']
+            soto_rank = soto_row.iloc[0]['rank']
+            soto_hrs = soto_row.iloc[0]['value']
+            
+            comparison_text = f"Aaron Judge: #{judge_rank} with {judge_hrs} HR, Juan Soto: #{soto_rank} with {soto_hrs} HR"
+        
+        result = {
+            'success': True,
+            'data': leaders_df.head(20).to_dict('records'),
+            'answer': comparison_text if comparison_text else "Comparison of home run leaders",
+            'explanation': 'Retrieved ranked home run leaders showing both players in context'
+        }
+except Exception as e:
+    result = {'success': False, 'error': str(e)}
+```
+
 Now generate code for the user's question."""
 
         user_prompt = f"""Question: {question}
