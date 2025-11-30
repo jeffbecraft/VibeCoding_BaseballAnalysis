@@ -22,15 +22,29 @@ def test_query(ai_handler, question, season=2024):
     print(f"QUESTION: {question}")
     print("="*70)
     
-    result = ai_handler.handle_query(question, season)
+    # Progress callback
+    def show_progress(step: str, detail: str):
+        print(f"\n[{step}] {detail}")
     
-    print("\nSTATUS:", "[OK]" if result.get('success') else "[FAILED]")
+    result = ai_handler.handle_query(question, season, progress_callback=show_progress)
+    
+    print("\n" + "-"*70)
+    print("STATUS:", "[OK]" if result.get('success') else "[FAILED]")
+    print("-"*70)
+    
+    # Show processing steps
+    if result.get('steps'):
+        print("\nPROCESSING STEPS:")
+        for step in result['steps']:
+            print(f"  {step}")
     
     if result.get('generated_code'):
         print("\nGENERATED CODE:")
         print("-"*70)
         for i, line in enumerate(result['generated_code'].split('\n')[:20], 1):
             print(f"{i:3}: {line}")
+        if len(result['generated_code'].split('\n')) > 20:
+            print("  ... (code truncated)")
         print("-"*70)
     
     if result.get('success'):

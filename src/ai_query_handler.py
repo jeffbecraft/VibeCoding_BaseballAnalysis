@@ -131,17 +131,23 @@ class AIQueryHandler:
                 "location": "cloud"
             }
     
-    def handle_query(self, question: str, season: int = 2024) -> Dict[str, Any]:
+    def handle_query(self, question: str, season: int = 2024, progress_callback=None) -> Dict[str, Any]:
         """
         Use AI to interpret the question and generate code to answer it.
         
         Args:
             question: User's natural language question
             season: Season year for the query
+            progress_callback: Optional function to call with progress updates
             
         Returns:
             Dictionary with results or error information
         """
+        def report_progress(step: str, detail: str = ""):
+            """Report progress to callback if provided."""
+            if progress_callback:
+                progress_callback(step, detail)
+        
         if not self.ai_available:
             return {
                 'success': False,
@@ -150,7 +156,8 @@ class AIQueryHandler:
             }
         
         try:
-            # Generate code using AI
+            # Step 1: Send question to AI
+            report_progress("Step 1", f"Sending your question to {self.provider.upper()} AI model ({self.model})...")
             code = self._generate_code(question, season)
             
             if not code:
@@ -160,18 +167,45 @@ class AIQueryHandler:
                     'suggestion': 'Try rephrasing your question more clearly.'
                 }
             
-            # Validate the generated code
+            # Step 2: Validate generated code
+            report_progress("Step 2", "Analyzing AI-generated code for security and safety...")
             is_safe, safety_message = self._validate_code_safety(code)
             
             if not is_safe:
                 return {
                     'success': False,
                     'error': f'Generated code failed safety check: {safety_message}',
-                    'code': code
+                    'code': code,
+                    'steps': [
+                        "✓ AI understood your question",
+                        "✓ Generated Python code",
+                        "✗ Code blocked by security validation"
+                    ]
                 }
             
-            # Execute the code and get results
+            report_progress("Step 3", "Code passed security checks. Executing query against MLB API...")
+            
+            # Step 3: Execute the code
             result = self._execute_code(code, question, season)
+            
+            # Add steps to result
+            if result.get('success'):
+                result['steps'] = [
+                    f"✓ AI ({self.provider}) interpreted your question",
+                    "✓ Generated Python code to query MLB API",
+                    "✓ Code passed security validation",
+                    "✓ Executed query and retrieved data",
+                    "✓ Processed results successfully"
+                ]
+                report_progress("Complete", "Query completed successfully!")
+            else:
+                result['steps'] = [
+                    f"✓ AI ({self.provider}) interpreted your question",
+                    "✓ Generated Python code",
+                    "✓ Code passed security checks",
+                    "✗ Execution failed (see error details)"
+                ]
+                report_progress("Failed", f"Execution failed: {result.get('error', 'Unknown error')}")
             
             return result
             
@@ -179,7 +213,10 @@ class AIQueryHandler:
             return {
                 'success': False,
                 'error': f'AI query handling failed: {str(e)}',
-                'traceback': traceback.format_exc()
+                'traceback': traceback.format_exc(),
+                'steps': [
+                    "✗ AI query handler encountered an error"
+                ]
             }
     
     def _generate_code(self, question: str, season: int) -> str:

@@ -213,11 +213,28 @@ class StreamlitMLBQuery:
             if st.session_state.ai_handler and st.session_state.ai_handler.is_available():
                 st.info("🤖 Standard query pattern not recognized. Using AI to interpret your question...")
                 
+                # Create progress placeholder
+                progress_container = st.empty()
+                steps_container = st.empty()
+                
                 # Extract year from query if present
                 year_match = re.search(r'\b(20\d{2}|19\d{2})\b', query_text)
                 season = int(year_match.group(1)) if year_match else get_current_season()
                 
-                ai_result = st.session_state.ai_handler.handle_query(query_text, season)
+                # Progress callback
+                def update_progress(step: str, detail: str):
+                    progress_container.info(f"**{step}:** {detail}")
+                
+                ai_result = st.session_state.ai_handler.handle_query(query_text, season, progress_callback=update_progress)
+                
+                # Clear progress, show steps
+                progress_container.empty()
+                
+                # Display processing steps
+                if ai_result.get('steps'):
+                    with st.expander("🔍 How AI Processed Your Question", expanded=True):
+                        for step in ai_result['steps']:
+                            st.write(step)
                 
                 if ai_result.get('success'):
                     return ai_result, None
@@ -243,10 +260,26 @@ class StreamlitMLBQuery:
                 st.warning(f"⚠️ Standard query failed: {str(e)}")
                 st.info("🤖 Trying AI-powered query interpretation...")
                 
+                # Create progress placeholder
+                progress_container = st.empty()
+                
                 year_match = re.search(r'\b(20\d{2}|19\d{2})\b', query_text)
                 season = int(year_match.group(1)) if year_match else get_current_season()
                 
-                ai_result = st.session_state.ai_handler.handle_query(query_text, season)
+                # Progress callback
+                def update_progress(step: str, detail: str):
+                    progress_container.info(f"**{step}:** {detail}")
+                
+                ai_result = st.session_state.ai_handler.handle_query(query_text, season, progress_callback=update_progress)
+                
+                # Clear progress, show steps
+                progress_container.empty()
+                
+                # Display processing steps
+                if ai_result.get('steps'):
+                    with st.expander("🔍 How AI Processed Your Question", expanded=True):
+                        for step in ai_result['steps']:
+                            st.write(step)
                 
                 if ai_result.get('success'):
                     return ai_result, None
