@@ -1200,14 +1200,23 @@ with st.sidebar:
         """)
     
     st.divider()
+
+# Recent queries (moved to main body for better visibility and interaction)
+if st.session_state.history:
+    st.subheader("📜 Recent Queries")
+    st.caption("Click any query to run it again")
     
-    # Query history
-    if st.session_state.history:
-        st.header("📜 Recent Queries")
-        for i, hist_query in enumerate(reversed(st.session_state.history[-5:])):
-            if st.button(f"🔄 {hist_query}", key=f"hist_{i}"):
+    # Display as clickable buttons in a more compact layout
+    cols = st.columns(2)
+    for i, hist_query in enumerate(reversed(st.session_state.history[-10:])):
+        col_idx = i % 2
+        with cols[col_idx]:
+            if st.button(f"🔄 {hist_query}", key=f"hist_{i}", use_container_width=True):
                 st.session_state.current_query = hist_query
+                st.rerun()
     
+    st.divider()
+
 # Main query input
 query = st.text_input(
     "Enter your question:",
