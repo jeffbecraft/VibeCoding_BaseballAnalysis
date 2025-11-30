@@ -234,17 +234,18 @@ class AIQueryHandler:
 
 You have access to:
 1. data_fetcher - An MLBDataFetcher instance with methods:
-   - get_teams() -> list of teams
-   - search_players(name) -> list of players
-   - get_player_season_stats(player_id, season) -> player stats
+   - get_teams(season) -> list of teams for a season
+   - search_players(name) -> list of players matching name (finds active and retired players)
+   - get_player_season_stats(player_id, season) -> player stats for specific season
+   - get_team_season_stats(team_id, season, stat_group='hitting') -> team stats for specific season
    - get_player_career_stats(player_id, stat_group) -> list of dicts with stats for each season
-   - get_team_season_stats(team_id, season, stat_group) -> team stats
    - get_team_career_stats(team_id, stat_group, start_year, end_year) -> list of dicts with stats for each season
-   - get_stats_leaders(stat_type, season, limit, stat_group) -> league leaders
+   - get_stats_leaders(stat_type, season, limit, stat_group, team_id=None, league_id=None, include_all=False) -> league leaders
+   - get_team_stats(season, stat_group='hitting') -> stats for all MLB teams in a season
 
 2. data_processor - An MLBDataProcessor instance with methods:
-   - extract_stats_leaders(data, limit) -> processed leaders
-   - extract_team_stats(teams_data, stat_name) -> team rankings
+   - extract_stats_leaders(data) -> DataFrame with ranked leaders
+   - extract_team_stats(teams_data, stat_name) -> DataFrame with team rankings
    - filter_by_season(data, season) -> filtered data
    - aggregate_career_stats(career_data, stat_group) -> dict with 'seasons', 'totals', 'career_rates'
    - create_career_dataframe(career_data) -> DataFrame with one row per season
@@ -263,6 +264,7 @@ IMPORTANT:
 - Do NOT include any explanatory text, just the code
 - Use try/except to handle potential errors
 - The code will be executed in a controlled environment
+- For player comparisons, use get_stats_leaders to show both players in ranked context
 
 Example 1 (Season Leaders):
 Question: "Who hit the most home runs in 2024?"
@@ -345,12 +347,12 @@ except Exception as e:
 ```
 
 Example 4 (Season Comparison with Ranking):
-Question: "Compare Aaron Judge vs Juan Soto home runs in 2024"
+Question: "Aaron Judge vs Juan Soto home runs in 2024"
 Code:
 ```python
 try:
     # Get leaders to show both in context
-    leaders = data_fetcher.get_stats_leaders('homeRuns', season, 50, 'hitting')
+    leaders = data_fetcher.get_stats_leaders('homeRuns', season, 100, 'hitting', include_all=True)
     leaders_df = data_processor.extract_stats_leaders(leaders)
     
     if leaders_df.empty:
@@ -371,9 +373,9 @@ try:
         
         result = {
             'success': True,
-            'data': leaders_df.head(20).to_dict('records'),
-            'answer': comparison_text if comparison_text else "Comparison of home run leaders",
-            'explanation': 'Retrieved ranked home run leaders showing both players in context'
+            'data': leaders_df.head(50).to_dict('records'),
+            'answer': comparison_text if comparison_text else "Home run leaders comparison",
+            'explanation': f'Retrieved {season} home run leaders showing both players in ranked context'
         }
 except Exception as e:
     result = {'success': False, 'error': str(e)}

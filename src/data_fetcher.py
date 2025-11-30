@@ -121,13 +121,14 @@ class MLBDataFetcher:
         }
         return self._make_request(endpoint, params)
     
-    def get_team_stats(self, team_id: int, season: int) -> Dict:
+    def get_team_season_stats(self, team_id: int, season: int, stat_group: str = "hitting") -> Dict:
         """
         Get team statistics for a specific season.
         
         Args:
             team_id: MLB team ID
             season: Season year
+            stat_group: 'hitting' or 'pitching'
             
         Returns:
             Dictionary containing team statistics
@@ -135,7 +136,8 @@ class MLBDataFetcher:
         endpoint = f"teams/{team_id}/stats"
         params = {
             "stats": "season",
-            "season": season
+            "season": season,
+            "group": stat_group
         }
         return self._make_request(endpoint, params)
     
