@@ -640,6 +640,76 @@ except Exception as e:
     result = {'success': False, 'error': str(e)}
 ```
 
+Example 6 (Direct "Who had MORE" Comparison - CRITICAL: Match variable names to players):
+Question: "Who had more stolen bases in 2024, Gunnar Henderson or Bobby Witt Jr.?"
+Code:
+```python
+try:
+    # Search for both players - BE CAREFUL WITH VARIABLE NAMES
+    henderson_results = data_fetcher.search_players('Gunnar Henderson')
+    witt_results = data_fetcher.search_players('Bobby Witt Jr.')
+    
+    if not henderson_results or len(henderson_results) == 0:
+        result = {'success': False, 'error': 'Gunnar Henderson not found'}
+    elif not witt_results or len(witt_results) == 0:
+        result = {'success': False, 'error': 'Bobby Witt Jr. not found'}
+    else:
+        henderson_id = henderson_results[0].get('id')
+        witt_id = witt_results[0].get('id')
+        
+        # Get season stats - MAINTAIN CLEAR VARIABLE NAMING
+        henderson_stats_raw = data_fetcher.get_player_season_stats(henderson_id, season)
+        witt_stats_raw = data_fetcher.get_player_season_stats(witt_id, season)
+        
+        # Parse stats
+        henderson_sb = 0
+        witt_sb = 0
+        
+        if henderson_stats_raw and 'stats' in henderson_stats_raw:
+            for stat_group in henderson_stats_raw['stats']:
+                if stat_group.get('group', {}).get('displayName') == 'hitting':
+                    splits = stat_group.get('splits', [])
+                    if splits and len(splits) > 0:
+                        henderson_sb = splits[0].get('stat', {}).get('stolenBases', 0)
+                        break
+        
+        if witt_stats_raw and 'stats' in witt_stats_raw:
+            for stat_group in witt_stats_raw['stats']:
+                if stat_group.get('group', {}).get('displayName') == 'hitting':
+                    splits = stat_group.get('splits', [])
+                    if splits and len(splits) > 0:
+                        witt_sb = splits[0].get('stat', {}).get('stolenBases', 0)
+                        break
+        
+        # CRITICAL: Construct answer CAREFULLY matching values to player names
+        if witt_sb > henderson_sb:
+            answer = f"Bobby Witt Jr. had more stolen bases in {season} with {witt_sb} SB vs Gunnar Henderson's {henderson_sb} SB"
+        elif henderson_sb > witt_sb:
+            answer = f"Gunnar Henderson had more stolen bases in {season} with {henderson_sb} SB vs Bobby Witt Jr.'s {witt_sb} SB"
+        else:
+            answer = f"Both players had {henderson_sb} stolen bases in {season}"
+        
+        result = {
+            'success': True,
+            'data': {
+                'player1': 'Gunnar Henderson',
+                'player2': 'Bobby Witt Jr.',
+                'henderson_stolen_bases': henderson_sb,
+                'witt_stolen_bases': witt_sb
+            },
+            'answer': answer,
+            'explanation': 'Retrieved and compared season statistics for both players'
+        }
+except Exception as e:
+    result = {'success': False, 'error': str(e)}
+```
+
+CRITICAL COMPARISON RULES:
+1. Use variable names that match the player (e.g., henderson_sb, not player1_sb)
+2. When constructing the answer, DOUBLE-CHECK you're matching the right value to the right name
+3. Compare the actual numeric values to determine "more" or "less"
+4. State the winner first in your answer with their value, then the other player
+
 Now generate code for the user's question."""
 
         user_prompt = f"""Question: {question}
