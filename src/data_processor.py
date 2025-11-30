@@ -347,6 +347,51 @@ class MLBDataProcessor:
         
         df = pd.DataFrame(rows)
         return df
+    
+    def extract_team_stats(self, team_stats_data: List[Dict], 
+                          stat_type: str) -> pd.DataFrame:
+        """
+        Extract and rank team statistics.
+        
+        Args:
+            team_stats_data: List of team stat dictionaries
+            stat_type: Specific stat to rank by (e.g., 'era', 'homeRuns', 'stolenBases')
+            
+        Returns:
+            DataFrame with ranked team statistics
+        """
+        if not team_stats_data:
+            return pd.DataFrame()
+        
+        rows = []
+        for team_data in team_stats_data:
+            stat = team_data.get('stat', {})
+            value = stat.get(stat_type)
+            
+            # Skip teams without this stat
+            if value is None:
+                continue
+            
+            row = {
+                'team_name': team_data.get('team_name'),
+                'team_id': team_data.get('team_id'),
+                'value': value
+            }
+            rows.append(row)
+        
+        if not rows:
+            return pd.DataFrame()
+        
+        df = pd.DataFrame(rows)
+        
+        # Sort by value (ascending for ERA/WHIP, descending for most others)
+        ascending = stat_type in ['era', 'whip']
+        df = df.sort_values('value', ascending=ascending).reset_index(drop=True)
+        
+        # Add rank column
+        df.insert(0, 'rank', range(1, len(df) + 1))
+        
+        return df
 
 
 if __name__ == "__main__":

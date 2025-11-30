@@ -291,6 +291,12 @@ class MLBQueryGUI:
         # Determine if it's a leaders query or player rank query
         query_type = "rank" if player_name else "leaders"
         
+        # Check if this is a team ranking query
+        team_ranking_keywords = ['teams', 'team', 'which team', 'what team']
+        is_team_query = any(keyword in query_lower for keyword in team_ranking_keywords)
+        if is_team_query and not player_name:
+            query_type = "team_rank"
+        
         # Extract limit for leaders queries
         limit = 10
         limit_match = re.search(r'\btop\s+(\d+)\b', query_lower)
@@ -457,7 +463,35 @@ class MLBQueryGUI:
             self.results_text.insert(tk.END, "=" * 60 + "\n\n")
             
             # Process based on query type
-            if params['query_type'] == 'rank' and params['player_name']:
+            if params['query_type'] == 'team_rank':
+                # Rank teams by statistic
+                self.status_var.set("Fetching team statistics...")
+                
+                team_stats = self.fetcher.get_team_stats(
+                    season=params['year'],
+                    stat_group=params['stat_group']
+                )
+                
+                if team_stats:
+                    teams_df = self.processor.extract_team_stats(
+                        team_stats,
+                        params['stat_type']
+                    )
+                    
+                    if not teams_df.empty:
+                        self.results_text.insert(tk.END, f"🏆 Team Rankings by {self.get_stat_display_name(params['stat_type'])} ({params['year']}):\n")
+                        self.results_text.insert(tk.END, "=" * 60 + "\n\n")
+                        self.results_text.insert(tk.END, teams_df.to_string(index=False))
+                        self.results_text.insert(tk.END, "\n")
+                        self.status_var.set(f"Showing {len(teams_df)} teams")
+                    else:
+                        self.results_text.insert(tk.END, f"❌ No team data found for {self.get_stat_display_name(params['stat_type'])}.\n")
+                        self.status_var.set("No team data found")
+                else:
+                    self.results_text.insert(tk.END, "❌ Could not fetch team statistics.\n")
+                    self.status_var.set("Error fetching team stats")
+                    
+            elif params['query_type'] == 'rank' and params['player_name']:
                 # Find player's rank (returns list of matches)
                 matches = self.find_player_rank(
                     params['player_name'],

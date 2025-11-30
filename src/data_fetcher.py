@@ -369,9 +369,72 @@ class MLBDataFetcher:
             if "leaders" in leaders and len(leaders["leaders"]) > 0:
                 return leaders["leaders"]
         return []
+    
+    def get_team_stats(self, season: Optional[int] = None, 
+                       stat_group: str = "hitting") -> List[Dict]:
+        """
+        Get statistics for all MLB teams.
+        
+        Args:
+            season: Season year (defaults to current year)
+            stat_group: 'hitting' or 'pitching'
+            
+        Returns:
+            List of team stat dictionaries
+        """
+        if season is None:
+            season = datetime.now().year
+        
+        endpoint = "teams"
+        params = {
+            "sportId": 1,
+            "season": season
+        }
+        
+        response = self._make_request(endpoint, params)
+        
+        if not response or 'teams' not in response:
+            return []
+        
+        teams = response['teams']
+        team_stats = []
+        
+        # Get stats for each team
+        for team in teams:
+            team_id = team.get('id')
+            team_name = team.get('name')
+            
+            # Get team season stats
+            stats_endpoint = f"teams/{team_id}/stats"
+            stats_params = {
+                "stats": "season",
+                "season": season,
+                "group": stat_group
+            }
+            
+            stats_response = self._make_request(stats_endpoint, stats_params)
+            
+            if stats_response and 'stats' in stats_response:
+                for stat_data in stats_response['stats']:
+                    splits = stat_data.get('splits', [])
+                    if splits:
+                        stat = splits[0].get('stat', {})
+                        
+                        team_stats.append({
+                            'team_id': team_id,
+                            'team_name': team_name,
+                            'stat': stat
+                        })
+                        break
+            
+            # Small delay to avoid rate limiting
+            time.sleep(0.1)
+        
+        return team_stats
 
 
 if __name__ == "__main__":
+
     # Example usage
     fetcher = MLBDataFetcher()
     
