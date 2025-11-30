@@ -184,3 +184,9 @@ With new features:
 **Backward Compatible**: ✅ Yes  
 **Tests Passing**: ✅ All 54 tests  
 **Documentation**: ✅ Updated
+
+## [1.1.1] - 2025-11-30
+
+### Changed
+- Auto-incremented version from 1.1.0 after successful test execution
+
