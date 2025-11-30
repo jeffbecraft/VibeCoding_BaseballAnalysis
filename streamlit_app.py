@@ -854,13 +854,12 @@ if 'query_handler' not in st.session_state:
     st.session_state.query_handler = StreamlitMLBQuery()
 
 
-def display_player_card(player_name: str, size: str = "small", show_info: bool = True):
+def display_player_card(player_name: str, show_info: bool = True):
     """
     Display a baseball card image for a player.
     
     Args:
         player_name: Name of the player to display
-        size: Image size - 'small', 'medium', or 'large'
         show_info: Whether to show additional player information
     
     Returns:
@@ -877,8 +876,8 @@ def display_player_card(player_name: str, size: str = "small", show_info: bool =
         player_id = player.get('id')
         full_name = player.get('fullName', player_name)
         
-        # Get the headshot URL
-        headshot_url = get_player_headshot_url(player_id, size)
+        # Get the headshot URL (always use small size)
+        headshot_url = get_player_headshot_url(player_id, "small")
         
         # Create a card-like display
         if show_info:
@@ -886,7 +885,7 @@ def display_player_card(player_name: str, size: str = "small", show_info: bool =
             col1, col2 = st.columns([1, 2])
             
             with col1:
-                st.image(headshot_url, use_container_width=True)
+                st.image(headshot_url, use_container_width=False)
             
             with col2:
                 st.markdown(f"### {full_name}")

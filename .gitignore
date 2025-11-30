@@ -44,6 +44,10 @@ data/processed/*
 !data/raw/.gitkeep
 !data/processed/.gitkeep
 
+# AI code cache (generated dynamically, should not be committed)
+data/ai_code_cache/
+data/mlb_cache/
+
 # IDE
 .vscode/
 .idea/
