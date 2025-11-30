@@ -253,6 +253,13 @@ You have access to:
 
 3. pandas as pd, numpy as np - for data processing
 
+IMPORTANT STAT FIELD NAMES (from get_player_season_stats after parsing):
+Hitting stats: gamesPlayed, avg, homeRuns, rbi, runs, stolenBases, hits, doubles, triples, 
+               atBats, obp, slg, ops, strikeOuts, baseOnBalls, hitByPitch
+Pitching stats: wins, losses, era, whip, strikeOuts, inningsPitched, hits, earnedRuns, baseOnBalls
+
+NOTE: Use 'runs' for runs scored (NOT 'r'), 'rbi' for RBI (NOT 'runsBattedIn')
+
 Generate ONLY the Python code needed to answer the question. The code should:
 - Use the provided data_fetcher and data_processor instances
 - Return a result dictionary with 'data', 'explanation', and 'answer' keys
