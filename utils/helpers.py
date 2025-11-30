@@ -175,6 +175,54 @@ LEAGUE_IDS = {
 }
 
 
+# Team ID to Name mapping (reverse lookup)
+TEAM_NAMES = {
+    147: "Yankees",
+    111: "Red Sox",
+    119: "Dodgers",
+    137: "Giants",
+    112: "Cubs",
+    138: "Cardinals",
+    117: "Astros",
+    144: "Braves",
+    143: "Phillies",
+    121: "Mets",
+    135: "Padres",
+    136: "Mariners",
+    108: "Angels",
+    141: "Blue Jays",
+    114: "Guardians",
+    142: "Twins",
+    145: "White Sox",
+    116: "Tigers",
+    118: "Royals",
+    110: "Orioles",
+    139: "Rays",
+    140: "Rangers",
+    133: "Athletics",
+    158: "Brewers",
+    134: "Pirates",
+    113: "Reds",
+    109: "Diamondbacks",
+    115: "Rockies",
+    146: "Marlins",
+    120: "Nationals"
+}
+
+
+def get_team_name(team_id: int) -> str:
+    """
+    Get team name from team ID.
+    
+    Args:
+        team_id: MLB team ID
+        
+    Returns:
+        Team name or 'Unknown' if not found
+    """
+    return TEAM_NAMES.get(team_id, f"Team {team_id}")
+
+
 if __name__ == "__main__":
     # Test utilities
     print(f"Current MLB season: {get_current_season()}")

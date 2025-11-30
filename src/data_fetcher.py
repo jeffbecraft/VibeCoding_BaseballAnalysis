@@ -136,7 +136,8 @@ class MLBDataFetcher:
         endpoint = "sports/1/players"
         params = {
             "season": datetime.now().year,
-            "gameType": "R"
+            "gameType": "R",
+            "hydrate": "currentTeam(league)"
         }
         data = self._make_request(endpoint, params)
         
