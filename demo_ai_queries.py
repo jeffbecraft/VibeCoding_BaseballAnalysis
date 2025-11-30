@@ -7,6 +7,12 @@ Run this to test AI query generation without the full Streamlit app.
 
 import sys
 import os
+import io
+
+# Fix Windows console encoding for emojis
+if sys.platform == 'win32':
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
 # Add paths
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
@@ -36,7 +42,7 @@ def main():
     # Check if AI is available
     if not ai_handler.is_available():
         print()
-        print("❌ AI Query Handler NOT Available")
+        print("[X] AI Query Handler NOT Available")
         print()
         print("To enable AI queries:")
         print("1. Install OpenAI: pip install openai")
@@ -44,7 +50,7 @@ def main():
         print()
         return
     
-    print("✅ AI Query Handler Ready!")
+    print("[OK] AI Query Handler Ready!")
     print()
     
     # Test connection
@@ -52,10 +58,10 @@ def main():
     test_result = ai_handler.test_connection()
     
     if test_result['success']:
-        print(f"✅ {test_result['message']}")
+        print(f"[OK] {test_result['message']}")
         print(f"   Model: {test_result['model']}")
     else:
-        print(f"❌ {test_result['message']}")
+        print(f"[X] {test_result['message']}")
         return
     
     print()
@@ -80,7 +86,7 @@ def main():
         result = ai_handler.handle_query(question, 2024)
         
         if result.get('success'):
-            print(f"✅ Success!")
+            print(f"[OK] Success!")
             print(f"\nAnswer: {result.get('answer', 'No answer provided')}")
             
             if result.get('explanation'):
@@ -96,7 +102,7 @@ def main():
                 if len(code_lines) > 10:
                     print(f"  ... ({len(code_lines) - 10} more lines)")
         else:
-            print(f"❌ Failed: {result.get('error', 'Unknown error')}")
+            print(f"[X] Failed: {result.get('error', 'Unknown error')}")
         
         print()
     
@@ -123,10 +129,10 @@ def main():
             result = ai_handler.handle_query(question, 2024)
             
             if result.get('success'):
-                print(f"\n✅ {result.get('answer', 'Query successful')}")
+                print(f"\n[OK] {result.get('answer', 'Query successful')}")
                 
                 if result.get('explanation'):
-                    print(f"\n💡 {result['explanation']}")
+                    print(f"\n[i] {result['explanation']}")
                 
                 # Show data if available
                 if result.get('data'):
@@ -136,13 +142,13 @@ def main():
                         for item in data[:5]:
                             print(f"  - {item}")
             else:
-                print(f"\n❌ Error: {result.get('error', 'Unknown error')}")
+                print(f"\n[X] Error: {result.get('error', 'Unknown error')}")
         
         except KeyboardInterrupt:
             print("\n\nInterrupted. Goodbye!")
             break
         except Exception as e:
-            print(f"\n❌ Error: {e}")
+            print(f"\n[X] Error: {e}")
 
 
 if __name__ == "__main__":

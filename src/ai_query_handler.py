@@ -70,7 +70,7 @@ class AIQueryHandler:
                 self.model = os.environ.get('OLLAMA_MODEL', 'llama3.2')
                 self.provider = "ollama"
                 self.ai_available = True
-                print(f"✅ Using Ollama (FREE) with model: {self.model}")
+                print(f"[OK] Using Ollama (FREE) with model: {self.model}")
                 return True
             except Exception as e:
                 print(f"Ollama not running: {e}")
@@ -89,7 +89,7 @@ class AIQueryHandler:
                 self.model = "gpt-4"
                 self.provider = "openai"
                 self.ai_available = True
-                print(f"✅ Using OpenAI with model: {self.model}")
+                print(f"[OK] Using OpenAI with model: {self.model}")
                 return True
             else:
                 print("No OPENAI_API_KEY found")
