@@ -153,15 +153,20 @@ class StreamlitMLBQuery:
                 wants_ranking = any(keyword in query_lower for keyword in ranking_keywords)
                 
                 query_type = "leaders"
-                team_ranking_keywords = ['teams', 'team', 'which team', 'what team']
-                is_team_query = any(keyword in query_lower for keyword in team_ranking_keywords)
                 
-                if is_team_query and not player_name:
+                # Check if this is asking about team-level stats (e.g., "which team had the most wins")
+                # vs team-filtered player stats (e.g., "rank the Orioles by home runs")
+                team_level_keywords = ['which team', 'what team', 'team with', 'team had']
+                is_team_level_query = any(keyword in query_lower for keyword in team_level_keywords)
+                
+                if is_team_level_query and not player_name:
                     query_type = "team_rank"
                 elif player_name and wants_ranking:
                     query_type = "rank"
                 elif player_name and not wants_ranking:
                     query_type = "player_stat"
+                # If team_name is present but no player_name, it's a team-filtered leaders query
+                # This stays as "leaders" query type
                 
                 # Extract limit
                 limit = 10
@@ -214,11 +219,19 @@ class StreamlitMLBQuery:
     
     def _handle_leaders(self, parsed):
         """Handle stats leaders query."""
+        # When filtering by team, we need all players from that team
+        # When not filtering, limit to top 50 for performance
+        limit = None if parsed['team_id'] else 50
+        include_all = True if parsed['team_id'] or parsed['league_id'] else False
+        
         stats_data = self.fetcher.get_stats_leaders(
             parsed['stat_type'],
             season=parsed['year'],
-            limit=50,
-            stat_group=parsed['stat_group']
+            limit=limit if not include_all else 500,
+            stat_group=parsed['stat_group'],
+            team_id=parsed['team_id'],
+            league_id=parsed['league_id'],
+            include_all=include_all
         )
         
         if not stats_data:
@@ -229,14 +242,10 @@ class StreamlitMLBQuery:
         if leaders_df.empty:
             return None, "No leaders found for this statistic."
         
-        # Apply filters
-        if parsed['team_id']:
-            leaders_df = leaders_df[leaders_df['teamId'] == parsed['team_id']]
-        if parsed['league_id']:
-            # League filtering was already done in get_stats_leaders
-            pass
-        
-        leaders_df = leaders_df.head(parsed['limit'])
+        # Team and league filtering is already done by get_stats_leaders when include_all=True
+        # Only apply limit if no team/league filter
+        if not parsed['team_id'] and not parsed['league_id']:
+            leaders_df = leaders_df.head(parsed['limit'])
         
         return leaders_df, None
     
