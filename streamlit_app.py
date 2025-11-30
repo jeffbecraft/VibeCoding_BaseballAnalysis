@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'utils'))
 from data_fetcher import MLBDataFetcher
 from data_processor import MLBDataProcessor
 from helpers import get_team_name, get_current_season, TEAM_IDS, LEAGUE_IDS
-from mlb_gui import MLBQueryGUI
+from stat_constants import STAT_MAPPINGS, PITCHING_STATS
 from ai_query_handler import AIQueryHandler
 from logger import get_logger
 import re
@@ -209,17 +209,17 @@ class StreamlitMLBQuery:
                     stat: "homeRuns", year: 2024}
         """
         class Parser:
-            # Copy stat mappings from the full GUI class
+            # Use shared stat mappings from stat_constants module
             # This dictionary translates common terms to API field names
             # Example: "home runs" → "homeRuns" (what the MLB API expects)
-            STAT_MAPPINGS = MLBQueryGUI.STAT_MAPPINGS
+            STAT_MAPPINGS = STAT_MAPPINGS
             
-            # Copy pitching stats list so we know when to request pitching data
+            # Use shared pitching stats list so we know when to request pitching data
             # Example: "era" is in PITCHING_STATS, so use stat_group="pitching"
-            PITCHING_STATS = MLBQueryGUI.PITCHING_STATS
+            PITCHING_STATS = PITCHING_STATS
             
             def parse_query(self, query: str) -> Optional[Dict]:
-                """Parse natural language query - copied from MLBQueryGUI."""
+                """Parse natural language query using shared constants."""
                 if not query or len(query.strip()) < 3:
                     return None
                 

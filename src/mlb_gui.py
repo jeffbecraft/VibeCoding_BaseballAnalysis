@@ -12,52 +12,17 @@ from typing import Optional, Dict, Tuple, List
 from data_fetcher import MLBDataFetcher
 from data_processor import MLBDataProcessor
 from helpers import get_team_name, get_current_season, TEAM_IDS, LEAGUE_IDS
+from stat_constants import STAT_MAPPINGS, PITCHING_STATS
 
 
 class MLBQueryGUI:
     """GUI application for natural language MLB statistics queries."""
     
-    # Mapping of common stat terms to API parameter names
-    STAT_MAPPINGS = {
-        # Hitting stats
-        'home runs': 'homeRuns',
-        'home run': 'homeRuns',
-        'hr': 'homeRuns',
-        'homers': 'homeRuns',
-        'stolen bases': 'stolenBases',
-        'stolen base': 'stolenBases',
-        'steals': 'stolenBases',
-        'sb': 'stolenBases',
-        'batting average': 'avg',
-        'average': 'avg',
-        'avg': 'avg',
-        'rbi': 'rbi',
-        'runs batted in': 'rbi',
-        'hits': 'hits',
-        'doubles': 'doubles',
-        'triples': 'triples',
-        'runs': 'runs',
-        'walks': 'walks',
-        'strikeouts': 'strikeouts',
-        'on base percentage': 'obp',
-        'obp': 'obp',
-        'slugging percentage': 'slg',
-        'slugging': 'slg',
-        'slg': 'slg',
-        'ops': 'ops',
-        # Pitching stats
-        'era': 'era',
-        'earned run average': 'era',
-        'wins': 'wins',
-        'saves': 'saves',
-        'strikeouts': 'strikeouts',
-        'whip': 'whip',
-        'innings pitched': 'inningsPitched',
-        'innings': 'inningsPitched'
-    }
+    # Use shared stat mappings from stat_constants module
+    STAT_MAPPINGS = STAT_MAPPINGS
     
-    # Stats that are pitching-related
-    PITCHING_STATS = {'era', 'wins', 'saves', 'whip', 'inningsPitched', 'strikeouts'}
+    # Use shared pitching stats list
+    PITCHING_STATS = PITCHING_STATS
     
     def __init__(self, root):
         """Initialize the GUI application."""
