@@ -638,8 +638,15 @@ class MLBDataFetcher:
                 stat = player_stat.get('stat', {})
                 value = stat.get(stat_type)
                 
-                # Skip players without this stat
-                if value is None:
+                # Skip players without this stat or with invalid placeholder values
+                # MLB API returns '-.--' for undefined ERA/WHIP values
+                if value is None or value == '' or value == '-.--':
+                    continue
+                
+                # Try to convert to float - skip if conversion fails
+                try:
+                    float_value = float(value)
+                except (ValueError, TypeError):
                     continue
                 
                 leaders.append({
