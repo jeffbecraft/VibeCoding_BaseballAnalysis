@@ -876,8 +876,8 @@ def display_player_card(player_name: str, show_info: bool = True):
         player_id = player.get('id')
         full_name = player.get('fullName', player_name)
         
-        # Get the headshot URL (always use small size)
-        headshot_url = get_player_headshot_url(player_id, "small")
+        # Get the headshot URL (use medium size for good balance with text)
+        headshot_url = get_player_headshot_url(player_id, "medium")
         
         # Create a card-like display
         if show_info:
