@@ -68,9 +68,15 @@ ai = [
     "openai>=1.3.0,<2.0.0",  # Optional - for OpenAI provider
 ]
 
+# Production monitoring dependencies
+monitoring = [
+    "sentry-sdk>=1.40.0,<2.0.0",  # Error tracking
+    "prometheus-client>=0.19.0,<1.0.0",  # Metrics
+]
+
 # All optional dependencies combined
 all = [
-    "mlb-stats-analysis[dev,web,notebooks,ai]",
+    "mlb-stats-analysis[dev,web,notebooks,ai,monitoring]",
 ]
 
 [project.urls]

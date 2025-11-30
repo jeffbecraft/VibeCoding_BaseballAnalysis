@@ -81,3 +81,12 @@ dmypy.json
 
 # Distribution / packaging
 *.whl
+
+# Docker
+*.tar
+.dockerignore
+
+# Production
+requirements.prod.lock
+*.production.log
+

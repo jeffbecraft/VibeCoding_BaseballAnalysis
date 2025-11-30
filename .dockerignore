@@ -1,0 +1,80 @@
+# Git and version control
+.git
+.gitignore
+.gitattributes
+*.md
+!README.md
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.hypothesis/
+
+# Data files (build fresh cache in container)
+data/raw/*
+data/processed/*
+data/cache/*
+data/ai_code_cache/*
+
+# Keep directory structure
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!data/cache/.gitkeep
+
+# Logs
+*.log
+logs/
+
+# Jupyter
+.ipynb_checkpoints
+notebooks/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment (will be configured at runtime)
+.env
+.env.local
+
+# Development scripts
+test_*.py
+demo_*.py
+diagnose_*.py
+run_gui.py
+run_tests.py
+run_security_check.py
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# GitHub
+.github/
+
+# Pre-commit
+.pre-commit-config.yaml

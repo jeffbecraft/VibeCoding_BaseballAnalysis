@@ -1,0 +1,88 @@
+version: '3.8'
+
+services:
+  # Main Streamlit web application
+  mlb-stats-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mlb-stats-web
+    ports:
+      - "8501:8501"
+    environment:
+      - ENVIRONMENT=production
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - AI_PROVIDER=${AI_PROVIDER:-auto}
+      - AI_MODEL=${AI_MODEL:-llama3.2}
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://ollama:11434}
+      - CACHE_TTL_HOURS=${CACHE_TTL_HOURS:-24}
+      - API_TIMEOUT_SECONDS=${API_TIMEOUT_SECONDS:-10}
+    volumes:
+      # Persist cache between container restarts
+      - cache-data:/app/data/cache
+      - ai-cache-data:/app/data/ai_code_cache
+      # Mount .env for local development (comment out for production)
+      - ./.env:/app/.env:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    depends_on:
+      ollama:
+        condition: service_healthy
+    networks:
+      - mlb-network
+
+  # Ollama for FREE local AI (optional)
+  ollama:
+    image: ollama/ollama:latest
+    container_name: mlb-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - mlb-network
+    # Pull llama3.2 model on startup
+    command: >
+      sh -c "ollama serve & sleep 5 && ollama pull llama3.2 && wait"
+
+volumes:
+  # Named volumes for data persistence
+  cache-data:
+    driver: local
+  ai-cache-data:
+    driver: local
+  ollama-data:
+    driver: local
+
+networks:
+  mlb-network:
+    driver: bridge
+
+# Production deployment example with resource limits:
+# 
+# services:
+#   mlb-stats-web:
+#     deploy:
+#       resources:
+#         limits:
+#           cpus: '1.0'
+#           memory: 1G
+#         reservations:
+#           cpus: '0.5'
+#           memory: 512M
+#       restart_policy:
+#         condition: on-failure
+#         delay: 5s
+#         max_attempts: 3

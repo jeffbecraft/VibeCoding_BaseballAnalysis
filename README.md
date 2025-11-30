@@ -276,7 +276,9 @@ See [TESTING_SUMMARY.md](TESTING_SUMMARY.md) for details on the test suite.
 
 ## Documentation
 
-- **[Architecture Guide](docs/ARCHITECTURE.md)**: **NEW!** Beginner-friendly system architecture guide
+- **[Production Readiness](docs/PRODUCTION_READINESS.md)**: **NEW!** Production deployment assessment
+- **[Production Deployment](docs/PRODUCTION_DEPLOYMENT.md)**: **NEW!** Complete production deployment guide
+- **[Architecture Guide](docs/ARCHITECTURE.md)**: Beginner-friendly system architecture guide
 - **[Retry Feature](docs/retry_feature.md)**: Guide to using the AI retry functionality
 - **[GUI Guide](GUI_GUIDE.md)**: Complete guide to the desktop GUI
 - **[Web App Summary](WEB_APP_SUMMARY.md)**: Overview of the web application
@@ -284,6 +286,7 @@ See [TESTING_SUMMARY.md](TESTING_SUMMARY.md) for details on the test suite.
 - **[Deployment Guide](DEPLOYMENT_GUIDE.md)**: Detailed deployment instructions
 - **[Testing Summary](TESTING_SUMMARY.md)**: Test suite documentation (54 tests)
 - **[Team/League Filtering](TEAM_LEAGUE_FILTERING.md)**: Filtering documentation
+- **[Security Guide](SECURITY.md)**: Security practices and scanning
 
 ## API Reference
 
