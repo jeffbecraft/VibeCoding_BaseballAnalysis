@@ -1,0 +1,56 @@
+name: Pull Request Checks
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  pr-validation:
+    name: Validate Pull Request
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-cov
+
+    - name: Run tests with coverage
+      run: |
+        python run_tests.py
+        pytest tests/ --cov=src --cov=utils --cov-report=term-missing
+
+    - name: Check for added tests
+      run: |
+        git diff origin/${{ github.base_ref }} --name-only | grep -E 'test_.*\.py' || echo "⚠️  No new tests added"
+
+    - name: Validate code changes
+      run: |
+        echo "📊 PR Statistics:"
+        echo "Files changed: $(git diff origin/${{ github.base_ref }} --name-only | wc -l)"
+        echo "Lines added: $(git diff origin/${{ github.base_ref }} --shortstat | grep -oE '[0-9]+ insertion' | grep -oE '[0-9]+' || echo 0)"
+        echo "Lines deleted: $(git diff origin/${{ github.base_ref }} --shortstat | grep -oE '[0-9]+ deletion' | grep -oE '[0-9]+' || echo 0)"
+
+    - name: Comment PR
+      uses: actions/github-script@v7
+      with:
+        script: |
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: '✅ Automated checks passed! Code is ready for review.'
+          })
+      continue-on-error: true

@@ -1,0 +1,57 @@
+name: Deploy to Streamlit Cloud
+
+on:
+  push:
+    branches: [ master, main ]
+    paths:
+      - 'streamlit_app.py'
+      - 'src/**'
+      - 'utils/**'
+      - 'requirements_web.txt'
+      - '.streamlit/**'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy Web App
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements_web.txt
+
+    - name: Run tests before deployment
+      run: |
+        pip install -r requirements.txt
+        python run_tests.py
+
+    - name: Validate Streamlit app
+      run: |
+        python -m py_compile streamlit_app.py
+        echo "✅ Streamlit app validated successfully"
+
+    - name: Create deployment marker
+      run: |
+        echo "Deployment timestamp: $(date)" > deployment.log
+        echo "Git commit: ${{ github.sha }}" >> deployment.log
+        echo "Triggered by: ${{ github.actor }}" >> deployment.log
+
+    - name: Deployment notification
+      run: |
+        echo "🚀 Ready for Streamlit Cloud deployment"
+        echo "📝 Commit: ${{ github.sha }}"
+        echo "👤 Author: ${{ github.actor }}"
+        echo "📅 Time: $(date)"
+        echo ""
+        echo "Streamlit Cloud will auto-deploy from this commit."
+        echo "Monitor at: https://share.streamlit.io/"

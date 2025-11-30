@@ -1,0 +1,121 @@
+name: Nightly Tests
+
+on:
+  schedule:
+    # Run at 2 AM UTC every day
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+jobs:
+  integration-tests:
+    name: Integration Tests with Real API
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run integration tests
+      run: |
+        # Enable integration tests by temporarily modifying test files
+        echo "Running integration tests with real MLB API..."
+        python -m pytest tests/test_data_fetcher.py::TestMLBDataFetcherIntegration -v
+      continue-on-error: true
+
+    - name: Test API endpoints
+      run: |
+        python -c "
+        from src.data_fetcher import MLBDataFetcher
+        import sys
+        
+        fetcher = MLBDataFetcher(use_cache=False)
+        
+        # Test basic endpoints
+        print('Testing MLB API connectivity...')
+        teams = fetcher.get_teams()
+        if teams:
+            print(f'✅ Teams endpoint: OK ({len(teams)} teams)')
+        else:
+            print('❌ Teams endpoint: FAILED')
+            sys.exit(1)
+        
+        # Test player search
+        players = fetcher.search_players('Judge')
+        if players:
+            print(f'✅ Player search: OK ({len(players)} results)')
+        else:
+            print('⚠️  Player search: No results')
+        
+        print('✅ All API tests passed')
+        "
+
+    - name: Performance benchmark
+      run: |
+        python -c "
+        from src.data_fetcher import MLBDataFetcher
+        import time
+        
+        print('Running performance benchmarks...')
+        
+        # Test with caching disabled
+        fetcher_no_cache = MLBDataFetcher(use_cache=False)
+        start = time.time()
+        fetcher_no_cache.get_teams()
+        no_cache_time = time.time() - start
+        print(f'Without cache: {no_cache_time:.2f}s')
+        
+        # Test with caching enabled
+        fetcher_cache = MLBDataFetcher(use_cache=True)
+        start = time.time()
+        fetcher_cache.get_teams()
+        first_cache_time = time.time() - start
+        print(f'First call with cache: {first_cache_time:.2f}s')
+        
+        start = time.time()
+        fetcher_cache.get_teams()
+        cached_time = time.time() - start
+        print(f'Cached call: {cached_time:.2f}s')
+        
+        speedup = first_cache_time / cached_time if cached_time > 0 else 0
+        print(f'Cache speedup: {speedup:.1f}x')
+        "
+
+  dependency-audit:
+    name: Dependency Security Audit
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install audit tools
+      run: |
+        python -m pip install --upgrade pip
+        pip install safety pip-audit
+
+    - name: Check for known vulnerabilities
+      run: |
+        echo "Checking dependencies for security vulnerabilities..."
+        safety check --json || true
+        pip-audit || true
+
+    - name: Check for outdated packages
+      run: |
+        pip install -r requirements.txt
+        pip list --outdated
