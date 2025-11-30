@@ -363,37 +363,60 @@ try:
     if not judge_results or not raleigh_results:
         result = {'success': False, 'error': 'One or both players not found'}
     else:
-        # Get season stats for both players
-        judge_stats = data_fetcher.get_player_season_stats(judge_results[0]['id'], season)
-        raleigh_stats = data_fetcher.get_player_season_stats(raleigh_results[0]['id'], season)
+        # Get season stats for both players (returns nested structure)
+        judge_stats_raw = data_fetcher.get_player_season_stats(judge_results[0]['id'], season)
+        raleigh_stats_raw = data_fetcher.get_player_season_stats(raleigh_results[0]['id'], season)
         
-        # Extract key hitting stats for comparison
-        judge_data = {
-            'player': judge_results[0]['fullName'],
-            'games': judge_stats.get('gamesPlayed', 0),
-            'avg': judge_stats.get('avg', '.000'),
-            'hr': judge_stats.get('homeRuns', 0),
-            'rbi': judge_stats.get('rbi', 0),
-            'ops': judge_stats.get('ops', '.000')
-        }
+        # Parse the nested stats structure: stats[0]['splits'][0]['stat']
+        judge_stats = {}
+        if judge_stats_raw and 'stats' in judge_stats_raw:
+            for stat_group in judge_stats_raw['stats']:
+                if stat_group.get('group', {}).get('displayName') == 'hitting' and stat_group.get('splits'):
+                    judge_stats = stat_group['splits'][0]['stat']
+                    break
         
-        raleigh_data = {
-            'player': raleigh_results[0]['fullName'],
-            'games': raleigh_stats.get('gamesPlayed', 0),
-            'avg': raleigh_stats.get('avg', '.000'),
-            'hr': raleigh_stats.get('homeRuns', 0),
-            'rbi': raleigh_stats.get('rbi', 0),
-            'ops': raleigh_stats.get('ops', '.000')
-        }
+        raleigh_stats = {}
+        if raleigh_stats_raw and 'stats' in raleigh_stats_raw:
+            for stat_group in raleigh_stats_raw['stats']:
+                if stat_group.get('group', {}).get('displayName') == 'hitting' and stat_group.get('splits'):
+                    raleigh_stats = stat_group['splits'][0]['stat']
+                    break
         
-        comparison_df = pd.DataFrame([judge_data, raleigh_data])
-        
-        result = {
-            'success': True,
-            'data': comparison_df.to_dict('records'),
-            'answer': f"{season} season comparison: {judge_results[0]['fullName']} vs {raleigh_results[0]['fullName']}",
-            'explanation': f'Retrieved and compared {season} season statistics for both players'
-        }
+        # Check if we have data for both players
+        if not judge_stats or not raleigh_stats:
+            result = {'success': False, 'error': f'No {season} season data available yet for one or both players'}
+        else:
+            # Extract key hitting stats for comparison
+            judge_data = {
+                'player': judge_results[0]['fullName'],
+                'games': judge_stats.get('gamesPlayed', 0),
+                'avg': judge_stats.get('avg', '.000'),
+                'hr': judge_stats.get('homeRuns', 0),
+                'rbi': judge_stats.get('rbi', 0),
+                'runs': judge_stats.get('runs', 0),
+                'sb': judge_stats.get('stolenBases', 0),
+                'ops': judge_stats.get('ops', '.000')
+            }
+            
+            raleigh_data = {
+                'player': raleigh_results[0]['fullName'],
+                'games': raleigh_stats.get('gamesPlayed', 0),
+                'avg': raleigh_stats.get('avg', '.000'),
+                'hr': raleigh_stats.get('homeRuns', 0),
+                'rbi': raleigh_stats.get('rbi', 0),
+                'runs': raleigh_stats.get('runs', 0),
+                'sb': raleigh_stats.get('stolenBases', 0),
+                'ops': raleigh_stats.get('ops', '.000')
+            }
+            
+            comparison_df = pd.DataFrame([judge_data, raleigh_data])
+            
+            result = {
+                'success': True,
+                'data': comparison_df.to_dict('records'),
+                'answer': f"{season} season comparison: {judge_results[0]['fullName']} vs {raleigh_results[0]['fullName']}",
+                'explanation': f'Retrieved and compared {season} season statistics for both players'
+            }
 except Exception as e:
     result = {'success': False, 'error': str(e)}
 ```
