@@ -862,19 +862,33 @@ class StreamlitMLBQuery:
                 full_name = player.get('fullName', player_name)
                 
                 # Get player stats (1 API call)
-                stats = self.fetcher.get_player_season_stats(
+                # Note: get_player_season_stats returns nested structure with both hitting/pitching
+                stats_response = self.fetcher.get_player_season_stats(
                     player_id,
-                    parsed['year'],
-                    stat_group=parsed['stat_group']
+                    parsed['year']
                 )
                 
-                if stats:
-                    # Extract the specific stat we're comparing
-                    stat_value = stats.get(parsed['stat_type'], 0)
-                    player_stats.append({
-                        'Player': full_name,
-                        parsed['stat_type']: stat_value
-                    })
+                if stats_response and 'stats' in stats_response:
+                    # Extract the specific stat we're comparing from nested response
+                    # Response structure: stats[0]['splits'][0]['stat'][stat_name]
+                    stat_value = None
+                    
+                    for stat_group in stats_response['stats']:
+                        # Check if this is the right stat group (hitting or pitching)
+                        group_name = stat_group.get('group', {}).get('displayName', '').lower()
+                        if parsed['stat_group'] in group_name or group_name in parsed['stat_group']:
+                            splits = stat_group.get('splits', [])
+                            if splits:
+                                # Get stats from first split (should be the season)
+                                stat_dict = splits[0].get('stat', {})
+                                stat_value = stat_dict.get(parsed['stat_type'])
+                                break
+                    
+                    if stat_value is not None:
+                        player_stats.append({
+                            'Player': full_name,
+                            parsed['stat_type']: stat_value
+                        })
             
             # If we successfully got stats for 2+ players, return direct comparison
             if len(player_stats) >= 2:
