@@ -509,8 +509,30 @@ class StreamlitMLBQuery:
                 if ai_result.get('success'):
                     return ai_result, None
                 else:
-                    # If AI fails, fall through to standard comparison handler
+                    # If AI fails, show error and retry option
                     st.warning(f"AI comparison failed: {ai_result.get('error')}. Showing ranked list instead...")
+                    
+                    # Show generated code if available for debugging
+                    if ai_result.get('generated_code'):
+                        with st.expander("🐛 Debug: View Generated Code"):
+                            st.code(ai_result['generated_code'], language='python')
+                            st.caption("This code failed validation. Click retry to generate new code.")
+                    
+                    # Add retry button for failed AI
+                    col1, col2, _ = st.columns([1, 1, 2])
+                    with col1:
+                        if st.button("🔄 Retry with AI", key="retry_failed_ai_comp", help="Clear cache and generate new code"):
+                            from utils.ai_code_cache import AICodeCache
+                            cache = AICodeCache()
+                            year_match = re.search(r'\b(20\d{2}|19\d{2})\b', query_text)
+                            season = int(year_match.group(1)) if year_match else get_current_season()
+                            cache_key = cache._generate_cache_key(query_text, season)
+                            cache.remove(cache_key)
+                            st.success("✓ Cache cleared! Generating fresh response...")
+                            st.rerun()
+                    with col2:
+                        if st.button("📝 Edit Query", key="edit_failed_ai_comp", help="Modify your question"):
+                            st.info("💡 Try rephrasing your question above")
         
         try:
             if query_type == 'team_rank':

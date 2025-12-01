@@ -301,14 +301,18 @@ class AIQueryHandler:
             is_safe, safety_message = self._validate_code_safety(code)
             
             if not is_safe:
+                logger.warning(f"Code failed safety check: {safety_message}")
+                logger.warning(f"Failed code:\n{code}")
                 return {
                     'success': False,
                     'error': f'Generated code failed safety check: {safety_message}',
                     'code': code,
+                    'generated_code': code,  # For display in UI
                     'steps': [
                         "✓ AI understood your question",
                         "✓ Generated Python code",
-                        "✗ Code blocked by security validation"
+                        f"✗ Code blocked by security validation: {safety_message}",
+                        "💡 Try clicking 'Retry' to generate new code"
                     ]
                 }
             
@@ -376,14 +380,14 @@ class AIQueryHandler:
         # First attempt
         result = self.handle_query(question, season, report_progress)
         
-        # If successful or if error is due to safety check, return immediately
+        # If successful, return immediately
         if result.get('success'):
             return result
         
         error_msg = result.get('error', '')
         
-        # Don't retry on security/safety failures
-        if 'safety check' in error_msg.lower() or 'unauthorized' in error_msg.lower():
+        # Don't retry on execution authorization failures (but DO retry syntax errors)
+        if 'unauthorized' in error_msg.lower() and 'import' in error_msg.lower():
             return result
         
         # Don't retry if no AI is available or if it's a handler error
@@ -856,6 +860,22 @@ Generate Python code to answer this question using the MLB API."""
             code_match = re.search(r'```python\n(.*?)\n```', generated_code, re.DOTALL)
             if code_match:
                 generated_code = code_match.group(1)
+            elif '```python' in generated_code:
+                # Try alternate pattern
+                code_match = re.search(r'```python\s*(.*?)```', generated_code, re.DOTALL)
+                if code_match:
+                    generated_code = code_match.group(1).strip()
+            elif '```' in generated_code:
+                # Code block without language specifier
+                code_match = re.search(r'```\s*(.*?)```', generated_code, re.DOTALL)
+                if code_match:
+                    generated_code = code_match.group(1).strip()
+            
+            # Log the generated code for debugging
+            logger.info(f"Generated code ({self.provider}):\n{generated_code[:500]}...")
+            print(f"\n=== GENERATED CODE ({self.provider}) ===")
+            print(generated_code[:500])
+            print("=== END GENERATED CODE ===")
             
             return generated_code
             
