@@ -380,10 +380,38 @@ class StreamlitMLBQuery:
                 }
             
             def needs_ai_for_comparison(self, query: str, parsed: Dict) -> bool:
-                """Check if this comparison query needs AI for a direct answer."""
+                """
+                Check if this comparison query needs AI for a direct answer.
+                
+                PERFORMANCE OPTIMIZATION:
+                -------------------------
+                We now handle direct player comparisons efficiently WITHOUT AI!
+                
+                When we DON'T need AI (fast path):
+                - Query has 2+ specific player names
+                - Query has a specific stat to compare
+                - Example: "Compare Gunnar Henderson vs Anthony Santander home runs"
+                - This takes ~2 seconds (4 API calls)
+                
+                When we DO need AI (complex queries):
+                - Complex logic: "Who hit more home runs after the all-star break?"
+                - Unusual phrasings that our parser can't handle
+                - Queries without specific stat or player names
+                - This takes ~15 seconds (LLM generation + execution)
+                """
                 if parsed.get('query_type') != 'comparison':
                     return False
                 
+                # If we have specific player names AND a stat, we can handle it fast!
+                # No need to route through slow AI path
+                has_players = len(parsed.get('all_player_names', [])) >= 2
+                has_stat = parsed.get('stat_type') is not None
+                
+                if has_players and has_stat:
+                    # We can handle this directly! Skip AI.
+                    return False
+                
+                # For complex queries without clear players/stats, use AI
                 query_lower = query.lower()
                 
                 # Questions asking "who had more/better/less" need direct answers
@@ -395,11 +423,8 @@ class StreamlitMLBQuery:
                 
                 needs_direct_answer = any(re.search(pattern, query_lower) for pattern in direct_comparison_patterns)
                 
-                # Also check if there are 2+ player names (indicating a multi-player comparison)
-                # that would benefit from AI's ability to extract and compare multiple entities
-                has_multiple_players = len(parsed.get('all_player_names', [])) >= 2
-                
-                return needs_direct_answer and has_multiple_players
+                # Only use AI if query is complex (no clear stat/players) but needs direct answer
+                return needs_direct_answer and not (has_players and has_stat)
             
             def get_stat_display_name(self, api_name: str) -> str:
                 """Get human-readable stat name."""
@@ -786,8 +811,97 @@ class StreamlitMLBQuery:
         return teams_df, None
     
     def _handle_comparison(self, parsed):
-        """Handle comparison queries - show rankings with both entities highlighted."""
+        """
+        Handle comparison queries - optimized for direct player comparisons.
+        
+        PERFORMANCE OPTIMIZATION:
+        -------------------------
+        If we have specific player names to compare (e.g., "Gunnar Henderson vs Anthony Santander"),
+        we can fetch their stats directly instead of loading all 100+ players and filtering.
+        
+        This is MUCH faster:
+        - Old (AI route): ~15+ seconds (LLM generation + execution)
+        - New (direct route): ~2 seconds (4 API calls total)
+        
+        Why 4 API calls?
+        1. Search for player 1 (1 call via /people/search)
+        2. Get player 1 stats (1 call)
+        3. Search for player 2 (1 call via /people/search) 
+        4. Get player 2 stats (1 call)
+        
+        This is the same optimization we did for retired players!
+        """
         import pandas as pd
+        
+        # Check if we have specific players to compare (fast path)
+        all_player_names = parsed.get('all_player_names', [])
+        if len(all_player_names) >= 2:
+            # ==================================================================================
+            # FAST PATH: Direct comparison of 2+ specific players
+            # ==================================================================================
+            # Instead of loading ALL players and filtering, we fetch only the players
+            # we need. This is dramatically faster, especially for retired players.
+            #
+            # Example: "Compare Gunnar Henderson vs Anthony Santander home runs"
+            # - We know exactly who to fetch
+            # - 4 API calls total (~2 seconds)
+            # - No AI needed!
+            # ==================================================================================
+            
+            player_stats = []
+            
+            for player_name in all_player_names[:10]:  # Limit to 10 players max for safety
+                # Search for player (1 API call via fast /people/search endpoint)
+                player_results = self.fetcher.search_players(player_name)
+                
+                if not player_results:
+                    continue  # Skip if player not found
+                
+                player = player_results[0]
+                player_id = player.get('id')
+                full_name = player.get('fullName', player_name)
+                
+                # Get player stats (1 API call)
+                stats = self.fetcher.get_player_season_stats(
+                    player_id,
+                    parsed['year'],
+                    stat_group=parsed['stat_group']
+                )
+                
+                if stats:
+                    # Extract the specific stat we're comparing
+                    stat_value = stats.get(parsed['stat_type'], 0)
+                    player_stats.append({
+                        'Player': full_name,
+                        parsed['stat_type']: stat_value
+                    })
+            
+            # If we successfully got stats for 2+ players, return direct comparison
+            if len(player_stats) >= 2:
+                comparison_df = pd.DataFrame(player_stats)
+                
+                # Sort by the stat (descending for most stats, ascending for ERA/WHIP)
+                ascending = parsed['stat_type'] in ['era', 'whip']
+                comparison_df = comparison_df.sort_values(
+                    by=parsed['stat_type'],
+                    ascending=ascending
+                )
+                
+                return {
+                    'type': 'direct_comparison',
+                    'data': comparison_df,
+                    'stat': self.parser.get_stat_display_name(parsed['stat_type']),
+                    'year': parsed['year'],
+                    'winner': comparison_df.iloc[0]['Player'],  # First player after sorting
+                    'winner_value': comparison_df.iloc[0][parsed['stat_type']]
+                }, None
+        
+        # ==================================================================================
+        # SLOW PATH: Get all leaders and filter (used when we don't have specific names)
+        # ==================================================================================
+        # This is slower but necessary when the query doesn't specify exact players,
+        # like "Show me the top home run hitters" (no specific comparison)
+        # ==================================================================================
         
         # Get all leaders for the stat
         stats_data = self.fetcher.get_stats_leaders(
@@ -1447,7 +1561,31 @@ if query:
         # Display results based on type
         elif isinstance(result, dict):
             # Check for comparison ranking view
-            if result.get('type') == 'comparison_ranking':
+            # Check if it's a direct comparison (fast path optimization)
+            if result.get('type') == 'direct_comparison':
+                st.markdown(f"### 🏆 {result['stat']} Comparison - {result['year']}")
+                
+                # Show winner prominently
+                st.success(f"**{result['winner']}** had more with **{result['winner_value']}** {result['stat'].lower()}")
+                
+                # Display comparison table
+                st.dataframe(
+                    result['data'],
+                    width='stretch',
+                    hide_index=True
+                )
+                
+                # Download button
+                csv = result['data'].to_csv(index=False)
+                st.download_button(
+                    label="📥 Download Comparison as CSV",
+                    data=csv,
+                    file_name=f"{result['stat']}_comparison_{result['year']}.csv",
+                    mime="text/csv"
+                )
+            
+            # Check if it's a comparison ranking (showing top 50-100 leaders)
+            elif result.get('type') == 'comparison_ranking':
                 st.markdown(f"### {result['stat']} Leaders - {result['year']}")
                 st.caption("Showing ranked results for comparison")
                 

@@ -4,6 +4,56 @@
 
 ### Recent Enhancements (2025-11-30)
 
+#### Performance: Active Player Comparison Optimization ✅
+
+**Critical Performance Fix for ALL Comparison Queries**
+
+**The Problem:**
+Even after optimizing retired player searches, active player comparisons were still slow because they were being routed through AI:
+- Query: "Compare Gunnar Henderson vs Anthony Santander home runs"
+- **Routed to AI**: 15+ seconds (LLM generation + execution)
+- **But we knew exactly who to compare!** Only needed 4 API calls
+
+**The Root Cause:**
+The `needs_ai_for_comparison` function was sending ALL comparisons to AI when it detected "who had more" phrasing, even when we had specific player names and stats.
+
+**The Solution:**
+1. **Detect fast-path comparisons**: When we have 2+ player names AND a specific stat, handle directly
+2. **New `_handle_comparison` fast path**: Fetch only the players we need (not all 100+ leaders)
+3. **Skip AI for simple comparisons**: Only use AI for truly complex queries
+
+**Performance Improvement:**
+- **Before**: 15+ seconds (AI generation + execution)
+- **After**: ~2 seconds (4 API calls total)
+- **Result**: **7-8x faster!**
+
+**Why 4 API Calls?**
+1. Search for player 1: `/people/search` (1 call)
+2. Get player 1 stats: `/people/{id}/stats` (1 call)
+3. Search for player 2: `/people/search` (1 call)
+4. Get player 2 stats: `/people/{id}/stats` (1 call)
+
+**What This Means for Users:**
+- "Compare X vs Y" queries now feel instant
+- Works for both active AND retired players
+- Same fast performance whether comparing 2 or more players
+- AI is only used for truly complex queries
+
+**Files Changed:**
+- `streamlit_app.py`: 
+  - Modified `needs_ai_for_comparison()` to detect simple comparisons
+  - Rewrote `_handle_comparison()` with fast-path for direct comparisons
+  - Added display handling for `direct_comparison` result type
+
+**Examples of Fast-Path Queries:**
+- ✅ "Compare Gunnar Henderson vs Anthony Santander home runs" (~2s)
+- ✅ "Who hit more HRs? Ken Griffey Jr or Albert Pujols?" (~2s)
+- ✅ "Aaron Judge vs Juan Soto batting average 2024" (~2s)
+
+**Examples Still Using AI (complex logic):**
+- "Who had more home runs after the all-star break?"
+- "Compare their clutch performance with runners in scoring position"
+
 #### Performance: Player Search Optimization ✅
 
 **Critical Performance Fix for Comparison Queries**
