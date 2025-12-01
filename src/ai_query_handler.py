@@ -117,7 +117,7 @@ class AIQueryHandler:
             try:
                 import streamlit as st
                 api_key = get_secret(
-                    secret_id="gemini-api-key",
+                    secret_id="GEMINI_API_KEY",
                     streamlit_secrets=st.secrets,
                     env_var="GEMINI_API_KEY"
                 )
