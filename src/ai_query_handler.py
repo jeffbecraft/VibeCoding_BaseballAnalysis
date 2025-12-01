@@ -66,8 +66,11 @@ class AIQueryHandler:
         cache_ttl_days = int(os.getenv('AI_CACHE_TTL_DAYS', '30'))
         self.code_cache = AICodeCache(ttl_days=cache_ttl_days)
         
-        # Auto-detect or use specified provider from env or parameter
-        provider = os.getenv('AI_PROVIDER', provider)
+        # Use specified provider (already resolved from secrets in streamlit_app.py)
+        # Only check environment variable if provider is still "auto"
+        if provider == "auto":
+            provider = os.getenv('AI_PROVIDER', provider)
+        
         if provider == "auto":
             # Try Ollama first (free, local)
             if self._init_ollama():
