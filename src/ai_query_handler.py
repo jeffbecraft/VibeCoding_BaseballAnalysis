@@ -135,12 +135,19 @@ class AIQueryHandler:
                 self.provider = "gemini"
                 self.ai_available = True
                 logger.info(f"Using Google Gemini with model: {self.model}")
+                print(f"✅ Gemini initialized successfully with model: {self.model}")
                 return True
             else:
                 logger.warning("No GEMINI_API_KEY found")
+                print("❌ Gemini initialization failed: No API key found")
                 return False
-        except ImportError:
+        except ImportError as ie:
             logger.debug("google-generativeai package not installed")
+            print(f"❌ Gemini initialization failed: {ie}")
+            return False
+        except Exception as e:
+            logger.error(f"Gemini initialization error: {e}", exc_info=True)
+            print(f"❌ Gemini initialization failed: {e}")
             return False
     
     def _init_openai(self) -> bool:
@@ -254,13 +261,21 @@ class AIQueryHandler:
             
             # Step 1: Send question to AI
             report_progress("Step 1", f"Sending your question to {self.provider.upper()} AI model ({self.model})...")
-            code = self._generate_code(question, season)
+            try:
+                code = self._generate_code(question, season)
+            except Exception as gen_error:
+                logger.error(f"Code generation failed: {gen_error}", exc_info=True)
+                return {
+                    'success': False,
+                    'error': f'AI code generation failed: {str(gen_error)}',
+                    'suggestion': 'Check Streamlit Cloud logs for detailed error.'
+                }
             
             if not code:
                 return {
                     'success': False,
-                    'error': 'AI could not generate code for this question.',
-                    'suggestion': 'Try rephrasing your question more clearly.'
+                    'error': 'AI returned empty code (check logs for details).',
+                    'suggestion': 'The AI model may have failed to respond. Check Streamlit logs.'
                 }
             
             # Step 2: Validate generated code
@@ -821,7 +836,10 @@ Generate Python code to answer this question using the MLB API."""
             return generated_code
             
         except Exception as e:
-            logger.error(f"Error generating code with AI: {e}", exc_info=True)
+            logger.error(f"Error generating code with {self.provider} AI: {e}", exc_info=True)
+            # Also log to console for Streamlit Cloud visibility
+            print(f"❌ AI ERROR ({self.provider}): {e}")
+            print(f"Traceback: {traceback.format_exc()}")
             return ""
     
     def _validate_code_safety(self, code: str) -> Tuple[bool, str]:
