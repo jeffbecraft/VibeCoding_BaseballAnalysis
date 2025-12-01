@@ -113,7 +113,7 @@ def get_health_status() -> Dict:
             'stats': {}
         },
         'ai': {
-            'available': st.session_state.ai_handler.is_available(),
+            'available': st.session_state.ai_handler.is_available() if st.session_state.ai_handler else False,
             'provider': None
         },
         'version': '1.0.0',
