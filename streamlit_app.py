@@ -1025,7 +1025,7 @@ with st.sidebar:
     # AI Query Status
     st.header("🤖 AI-Powered Queries")
     
-    if st.session_state.ai_handler.is_available():
+    if st.session_state.ai_handler and st.session_state.ai_handler.is_available():
         provider_info = st.session_state.ai_handler.get_provider_info()
         
         if provider_info['provider'] == 'ollama':
@@ -1038,6 +1038,12 @@ with st.sidebar:
             st.success("✅ AI Assistant Enabled")
             st.caption(f"""
             Using **OpenAI** ({provider_info['model']})
+            AI can answer questions that don't match standard patterns.
+            """)
+        elif provider_info['provider'] == 'gemini':
+            st.success("✅ AI Assistant Enabled (FREE)")
+            st.caption(f"""
+            Using **Google Gemini** ({provider_info['model']}) - free tier!
             AI can answer questions that don't match standard patterns.
             """)
         
