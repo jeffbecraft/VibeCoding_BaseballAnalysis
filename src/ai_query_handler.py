@@ -256,11 +256,11 @@ class AIQueryHandler:
             # Step 0: Check code cache
             cached_entry = self.code_cache.get(question, season)
             if cached_entry:
-                report_progress("Step 0", "Found cached code from previous query (skipping AI generation)...")
+                report_progress("⏳ Good news", "I remember this question! This will be quick...")
                 code = cached_entry['code']
                 
                 # Execute cached code
-                report_progress("Step 1", "Executing cached code...")
+                report_progress("📊 Getting your answer", "Looking up the latest stats...")
                 start_time = time.time()
                 result = self._execute_code(code, question, season)
                 execution_time = time.time() - start_time
@@ -268,17 +268,17 @@ class AIQueryHandler:
                 if result.get('success'):
                     result['cached'] = True
                     result['steps'] = [
-                        "✓ Found cached code from previous similar query",
-                        "✓ Skipped AI generation (saved 2-5 seconds!)",
-                        f"✓ Executed cached code in {execution_time:.2f}s",
-                        "✓ Query completed successfully"
+                        "✓ I remembered how to answer this question",
+                        "✓ Got your answer faster than the first time",
+                        f"✓ Found the stats in {execution_time:.2f} seconds",
+                        "✓ All done!"
                     ]
                     result['code'] = code
-                    report_progress("Complete", f"Query completed using cache in {execution_time:.2f}s!")
+                    report_progress("✅ Done", f"Found your answer in {execution_time:.2f} seconds!")
                 return result
             
             # Step 1: Send question to AI
-            report_progress("Step 1", f"Sending your question to {self.provider.upper()} AI model ({self.model})...")
+            report_progress("🤔 Thinking", "Figuring out how to answer your question... This might take a minute or two the first time.")
             try:
                 code = self._generate_code(question, season)
             except Exception as gen_error:
@@ -297,7 +297,7 @@ class AIQueryHandler:
                 }
             
             # Step 2: Validate generated code
-            report_progress("Step 2", "Analyzing AI-generated code for security and safety...")
+            report_progress("✅ Double-checking", "Making sure everything is safe...")
             is_safe, safety_message = self._validate_code_safety(code)
             
             if not is_safe:
@@ -309,14 +309,14 @@ class AIQueryHandler:
                     'code': code,
                     'generated_code': code,  # For display in UI
                     'steps': [
-                        "✓ AI understood your question",
-                        "✓ Generated Python code",
-                        f"✗ Code blocked by security validation: {safety_message}",
-                        "💡 Try clicking 'Retry' to generate new code"
+                        "✓ I understood your question",
+                        "✓ Came up with a way to answer it",
+                        f"✗ Oops, something wasn't quite right: {safety_message}",
+                        "💡 Click 'Retry' below and I'll try again with a fresh approach"
                     ]
                 }
             
-            report_progress("Step 3", "Code passed security checks. Executing query against MLB API...")
+            report_progress("📊 Looking it up", "Searching the baseball stats database...")
             
             # Step 3: Execute the code
             start_time = time.time()
@@ -330,21 +330,21 @@ class AIQueryHandler:
                 
                 result['cached'] = False
                 result['steps'] = [
-                    f"✓ AI ({self.provider}) interpreted your question",
-                    "✓ Generated Python code to query MLB API",
-                    "✓ Code passed security validation",
-                    f"✓ Executed query in {execution_time:.2f}s and retrieved data",
-                    "✓ Cached code for future queries"
+                    "✓ I understood your question",
+                    "✓ Figured out how to find the answer",
+                    "✓ Made sure everything was safe",
+                    f"✓ Found your answer in {execution_time:.2f} seconds",
+                    "✓ I'll remember this for next time so it's faster!"
                 ]
-                report_progress("Complete", "Query completed successfully!")
+                report_progress("✅ Done", "Got your answer!")
             else:
                 result['steps'] = [
-                    f"✓ AI ({self.provider}) interpreted your question",
-                    "✓ Generated Python code",
-                    "✓ Code passed security checks",
-                    "✗ Execution failed (see error details)"
+                    "✓ I understood your question",
+                    "✓ Figured out how to answer it",
+                    "✓ Made sure everything was safe",
+                    "✗ Hmm, ran into a problem getting the stats"
                 ]
-                report_progress("Failed", f"Execution failed: {result.get('error', 'Unknown error')}")
+                report_progress("⚠️ Problem", f"Had trouble: {result.get('error', 'Something went wrong')}")
             
             return result
             
@@ -395,7 +395,7 @@ class AIQueryHandler:
             return result
         
         # Attempt retry with error feedback
-        report_progress("Retry", "First attempt failed. Trying again with error feedback...")
+        report_progress("🔄 Trying again", "Let me try a different approach...")
         
         try:
             # Generate improved code with error context
@@ -415,7 +415,7 @@ class AIQueryHandler:
                 return result
             
             # Execute the retry code
-            report_progress("Retry", "Executing improved code...")
+            report_progress("📊 Second try", "Checking the stats with my new approach...")
             start_time = time.time()
             retry_result = self._execute_code(code, question, season)
             execution_time = time.time() - start_time
@@ -428,14 +428,14 @@ class AIQueryHandler:
                 retry_result['retry_attempted'] = True
                 retry_result['retry_succeeded'] = True
                 retry_result['steps'] = [
-                    f"✓ AI ({self.provider}) interpreted your question",
-                    "✗ First attempt failed",
-                    "✓ AI learned from error and generated improved code",
-                    "✓ Retry code passed security validation",
-                    f"✓ Executed retry query in {execution_time:.2f}s and retrieved data",
-                    "✓ Cached improved code for future queries"
+                    "✓ I understood your question",
+                    "✗ My first try didn't work",
+                    "✓ Learned from that and tried again",
+                    "✓ This time it worked!",
+                    f"✓ Got your answer in {execution_time:.2f} seconds",
+                    "✓ I'll remember this for next time"
                 ]
-                report_progress("Complete", "Query succeeded on retry!")
+                report_progress("✅ Success", "Second time's the charm! Got your answer!")
                 return retry_result
             else:
                 # Retry also failed

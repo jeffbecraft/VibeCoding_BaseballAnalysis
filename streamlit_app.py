@@ -426,7 +426,7 @@ class StreamlitMLBQuery:
             # Try AI-powered query handling as fallback
             # Initialize AI handler on first use if not already done
             if st.session_state.ai_handler is None and not st.session_state.ai_init_attempted:
-                with st.spinner("🔌 Connecting to AI service..."):
+                with st.spinner("⏳ Getting ready to answer your question... This may take a minute the first time, but I'll remember for next time!"):
                     st.session_state.ai_handler = AIQueryHandler(
                         st.session_state.fetcher,
                         st.session_state.processor,
@@ -435,7 +435,7 @@ class StreamlitMLBQuery:
                     st.session_state.ai_init_attempted = True
             
             if st.session_state.ai_handler and st.session_state.ai_handler.is_available():
-                st.info("🤖 This question requires AI to answer. Using AI to interpret your question...")
+                st.info("🤖 I'll need to think about this one... Just a moment!")
                 
                 # Create progress placeholder
                 progress_container = st.empty()
@@ -473,7 +473,7 @@ class StreamlitMLBQuery:
         if query_type == 'comparison' and self.parser.needs_ai_for_comparison(query_text, parsed):
             # Initialize AI handler on first use if not already done
             if st.session_state.ai_handler is None and not st.session_state.ai_init_attempted:
-                with st.spinner("🔌 Connecting to AI service..."):
+                with st.spinner("⏳ Getting ready to answer your question... This may take a minute the first time, but I'll remember for next time!"):
                     st.session_state.ai_handler = AIQueryHandler(
                         st.session_state.fetcher,
                         st.session_state.processor,
@@ -482,7 +482,7 @@ class StreamlitMLBQuery:
                     st.session_state.ai_init_attempted = True
             
             if st.session_state.ai_handler and st.session_state.ai_handler.is_available():
-                st.info("🤖 This comparison question needs a direct answer. Using AI...")
+                st.info("🤖 Let me figure out who had more... Just a moment!")
                 
                 # Create progress placeholder
                 progress_container = st.empty()
@@ -560,7 +560,7 @@ class StreamlitMLBQuery:
             # If standard query fails, try AI fallback
             # Initialize AI handler on first use if not already done
             if st.session_state.ai_handler is None and not st.session_state.ai_init_attempted:
-                with st.spinner("🔌 Connecting to AI service..."):
+                with st.spinner("⏳ Getting ready to answer your question... This may take a minute the first time, but I'll remember for next time!"):
                     st.session_state.ai_handler = AIQueryHandler(
                         st.session_state.fetcher,
                         st.session_state.processor,
@@ -569,8 +569,8 @@ class StreamlitMLBQuery:
                     st.session_state.ai_init_attempted = True
             
             if st.session_state.ai_handler and st.session_state.ai_handler.is_available():
-                st.warning(f"⚠️ Standard query failed: {str(e)}")
-                st.info("🤖 Trying AI-powered query interpretation...")
+                st.warning(f"⚠️ Hmm, I had trouble with that question: {str(e)}")
+                st.info("🤖 Let me try a different approach... One moment!")
                 
                 # Create progress placeholder
                 progress_container = st.empty()
@@ -1343,7 +1343,7 @@ if query:
         
         # Check if this is an AI-generated result
         if isinstance(result, dict) and result.get('ai_generated'):
-            st.info("🤖 This answer was generated using AI")
+            st.info("🤖 I used AI to figure this one out!")
             
             # Display the answer
             if result.get('answer'):
