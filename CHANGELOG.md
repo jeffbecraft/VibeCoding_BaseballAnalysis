@@ -185,6 +185,12 @@ With new features:
 **Tests Passing**: ✅ All 54 tests  
 **Documentation**: ✅ Updated
 
+## [1.1.14] - 2025-12-01
+
+### Changed
+- Auto-incremented version from 1.1.13 after successful test execution
+
+
 ## [1.1.13] - 2025-12-01
 
 ### Changed
