@@ -131,17 +131,21 @@ class AIQueryHandler:
             if api_key:
                 genai.configure(api_key=api_key)
                 self.gemini = genai
-                # Use the model name compatible with the SDK's default v1beta API
-                # gemini-1.5-flash is not in v1beta, use gemini-1.5-flash-latest or gemini-pro
+                # Use model names that work with the SDK's default v1beta API
+                # The v1beta API has different model names than the REST API
                 model_name = os.getenv('AI_MODEL', 'gemini-1.5-flash')
                 
-                # Map model names to v1beta compatible versions
+                # Map to v1beta compatible model names (without models/ prefix or -latest suffix)
+                # For v1beta API, use simple names like "gemini-1.5-flash" or "gemini-pro"
                 model_mapping = {
-                    'gemini-1.5-flash': 'gemini-1.5-flash-latest',
-                    'gemini-1.5-pro': 'gemini-1.5-pro-latest',
+                    'gemini-1.5-flash': 'gemini-1.5-flash',
+                    'gemini-1.5-flash-latest': 'gemini-1.5-flash',
+                    'gemini-1.5-pro': 'gemini-1.5-pro',
+                    'gemini-1.5-pro-latest': 'gemini-1.5-pro',
+                    'gemini-pro': 'gemini-pro',
                 }
                 
-                self.model = model_mapping.get(model_name, model_name)
+                self.model = model_mapping.get(model_name, 'gemini-1.5-flash')
                 self.provider = "gemini"
                 self.ai_available = True
                 logger.info(f"Using Google Gemini with model: {self.model}")
