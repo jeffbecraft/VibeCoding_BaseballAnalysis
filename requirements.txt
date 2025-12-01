@@ -9,3 +9,9 @@ jupyter>=1.0.0
 scipy>=1.10.0
 statsmodels>=0.14.0
 bump-my-version>=0.16.0
+
+# AI Providers (optional - install what you need)
+google-generativeai>=0.3.0  # For Google Gemini AI (FREE tier available)
+google-cloud-secret-manager>=2.16.0  # For GCP Secret Manager integration
+openai>=1.0.0  # For OpenAI (costs money)
+ollama>=0.1.0  # For local Ollama (FREE)

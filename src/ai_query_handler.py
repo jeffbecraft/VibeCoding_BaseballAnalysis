@@ -5,12 +5,13 @@ This module uses generative AI to interpret user questions and dynamically
 generate Python code to answer queries that don't match predefined patterns.
 
 When a query fails with the standard parser, this handler:
-1. Sends the question to an AI model (OpenAI GPT-4 or Ollama)
+1. Sends the question to an AI model (Gemini, OpenAI, or Ollama)
 2. AI generates Python code using the MLB API
 3. Code is validated and executed in a sandboxed environment
 4. Results are returned to the user
 
 Supported AI Providers:
+- Google Gemini (gemini-1.5-flash, etc.) - Cloud, FREE tier available, no credit card required
 - OpenAI (GPT-4, GPT-3.5-Turbo) - Cloud, requires API key, costs money
 - Ollama (llama3.2, mistral, etc.) - Local, FREE, no API key needed
 
@@ -50,13 +51,14 @@ class AIQueryHandler:
         Args:
             data_fetcher: MLBDataFetcher instance for API access
             data_processor: MLBDataProcessor instance for data processing
-            provider: "auto" (default), "ollama" (free), or "openai" (cloud)
+            provider: "auto" (default), "ollama" (free), "openai" (cloud), or "gemini" (cloud)
         """
         self.data_fetcher = data_fetcher
         self.data_processor = data_processor
         self.provider = None
         self.openai = None
         self.ollama = None
+        self.gemini = None
         self.model = None
         self.ai_available = False
         
@@ -70,10 +72,15 @@ class AIQueryHandler:
             # Try Ollama first (free, local)
             if self._init_ollama():
                 return
+            # Try Gemini (free tier, cloud)
+            if self._init_gemini():
+                return
             # Fallback to OpenAI
             self._init_openai()
         elif provider == "ollama":
             self._init_ollama()
+        elif provider == "gemini":
+            self._init_gemini()
         elif provider == "openai":
             self._init_openai()
     
@@ -95,6 +102,42 @@ class AIQueryHandler:
                 return False
         except ImportError:
             logger.debug("Ollama package not installed")
+            return False
+    
+    def _init_gemini(self) -> bool:
+        """Try to initialize Google Gemini (cloud, free tier available)."""
+        try:
+            import google.generativeai as genai
+            from src.secret_manager import get_secret
+            
+            # Try to get API key from multiple sources
+            api_key = None
+            
+            # Try Streamlit secrets if available
+            try:
+                import streamlit as st
+                api_key = get_secret(
+                    secret_id="gemini-api-key",
+                    streamlit_secrets=st.secrets,
+                    env_var="GEMINI_API_KEY"
+                )
+            except:
+                # Fall back to direct environment variable
+                api_key = os.environ.get('GEMINI_API_KEY')
+            
+            if api_key:
+                genai.configure(api_key=api_key)
+                self.gemini = genai
+                self.model = os.getenv('AI_MODEL', 'gemini-1.5-flash')
+                self.provider = "gemini"
+                self.ai_available = True
+                logger.info(f"Using Google Gemini with model: {self.model}")
+                return True
+            else:
+                logger.warning("No GEMINI_API_KEY found")
+                return False
+        except ImportError:
+            logger.debug("google-generativeai package not installed")
             return False
     
     def _init_openai(self) -> bool:
@@ -141,6 +184,13 @@ class AIQueryHandler:
                 "model": self.model,
                 "cost": "free",
                 "location": "local"
+            }
+        elif self.provider == "gemini":
+            return {
+                "provider": "gemini",
+                "model": self.model,
+                "cost": "free tier available",
+                "location": "cloud"
             }
         else:  # openai
             return {
@@ -741,6 +791,12 @@ Generate Python code to answer this question using the MLB API."""
                     ]
                 )
                 generated_code = response['message']['content'].strip()
+            elif self.provider == "gemini":
+                # Use Google Gemini (cloud, free tier)
+                model = self.gemini.GenerativeModel(self.model)
+                full_prompt = f"{system_prompt}\n\nUser question: {user_prompt}"
+                response = model.generate_content(full_prompt)
+                generated_code = response.text.strip()
             else:
                 # Use OpenAI (cloud, paid)
                 response = self.openai.chat.completions.create(
@@ -966,6 +1022,10 @@ Generate ONLY the corrected Python code, no explanations."""
                     ]
                 )
                 generated_code = response['message']['content'].strip()
+            elif self.provider == "gemini":
+                model = self.gemini.GenerativeModel(self.model)
+                response = model.generate_content(feedback_prompt)
+                generated_code = response.text.strip()
             else:
                 response = self.openai.chat.completions.create(
                     model=self.model,
@@ -998,7 +1058,7 @@ Generate ONLY the corrected Python code, no explanations."""
         if not self.ai_available:
             return {
                 'success': False,
-                'message': 'No AI provider available. Install Ollama or set OPENAI_API_KEY.'
+                'message': 'No AI provider available. Install Ollama, set GEMINI_API_KEY, or set OPENAI_API_KEY.'
             }
         
         try:
@@ -1013,6 +1073,16 @@ Generate ONLY the corrected Python code, no explanations."""
                     'message': 'Connection successful!',
                     'model': self.model,
                     'provider': 'Ollama (FREE, local)'
+                }
+            elif self.provider == "gemini":
+                # Test Gemini
+                model = self.gemini.GenerativeModel(self.model)
+                response = model.generate_content("Say 'OK'")
+                return {
+                    'success': True,
+                    'message': 'Connection successful!',
+                    'model': self.model,
+                    'provider': 'Google Gemini (cloud, free tier)'
                 }
             else:
                 # Test OpenAI
