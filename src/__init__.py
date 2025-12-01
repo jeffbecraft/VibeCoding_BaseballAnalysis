@@ -2,7 +2,7 @@
 MLB Statistics Analysis System
 """
 
-__version__ = "1.1.25"
+__version__ = "1.1.26"
 __author__ = "Jeff Becraft"
 __email__ = "jeffbecraft.professional@gmail.com"
 __description__ = "Comprehensive MLB statistics analysis system with AI-powered queries"
