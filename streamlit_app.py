@@ -84,20 +84,10 @@ if 'fetcher' not in st.session_state:
     st.session_state.fetcher = MLBDataFetcher(use_cache=True)
     st.session_state.processor = MLBDataProcessor()
     st.session_state.history = []
-    # Initialize AI query handler
-    # Get AI provider from secrets or environment variable
-    ai_provider = st.secrets.get("AI_PROVIDER", os.getenv("AI_PROVIDER", "auto"))
-    
-    # Debug: Show what provider was selected (remove after verification)
-    if "debug_shown" not in st.session_state:
-        st.info(f"🔍 AI Provider: {ai_provider} | Has GEMINI_API_KEY: {'GEMINI_API_KEY' in st.secrets}")
-        st.session_state.debug_shown = True
-    
-    st.session_state.ai_handler = AIQueryHandler(
-        st.session_state.fetcher,
-        st.session_state.processor,
-        provider=ai_provider
-    )
+    # Store AI provider setting but defer initialization until needed
+    st.session_state.ai_provider = st.secrets.get("AI_PROVIDER", os.getenv("AI_PROVIDER", "auto"))
+    st.session_state.ai_handler = None  # Will be initialized on first use
+    st.session_state.ai_init_attempted = False
     # Initialize GitHub issue reporter
     st.session_state.issue_reporter = GitHubIssueReporter()
 
@@ -434,8 +424,18 @@ class StreamlitMLBQuery:
         
         if not parsed:
             # Try AI-powered query handling as fallback
+            # Initialize AI handler on first use if not already done
+            if st.session_state.ai_handler is None and not st.session_state.ai_init_attempted:
+                with st.spinner("🔌 Connecting to AI service..."):
+                    st.session_state.ai_handler = AIQueryHandler(
+                        st.session_state.fetcher,
+                        st.session_state.processor,
+                        provider=st.session_state.ai_provider
+                    )
+                    st.session_state.ai_init_attempted = True
+            
             if st.session_state.ai_handler and st.session_state.ai_handler.is_available():
-                st.info("🤖 Standard query pattern not recognized. Using AI to interpret your question...")
+                st.info("🤖 This question requires AI to answer. Using AI to interpret your question...")
                 
                 # Create progress placeholder
                 progress_container = st.empty()
@@ -471,6 +471,16 @@ class StreamlitMLBQuery:
         
         # Check if this comparison needs AI for a direct answer
         if query_type == 'comparison' and self.parser.needs_ai_for_comparison(query_text, parsed):
+            # Initialize AI handler on first use if not already done
+            if st.session_state.ai_handler is None and not st.session_state.ai_init_attempted:
+                with st.spinner("🔌 Connecting to AI service..."):
+                    st.session_state.ai_handler = AIQueryHandler(
+                        st.session_state.fetcher,
+                        st.session_state.processor,
+                        provider=st.session_state.ai_provider
+                    )
+                    st.session_state.ai_init_attempted = True
+            
             if st.session_state.ai_handler and st.session_state.ai_handler.is_available():
                 st.info("🤖 This comparison question needs a direct answer. Using AI...")
                 
@@ -526,6 +536,16 @@ class StreamlitMLBQuery:
             })
             
             # If standard query fails, try AI fallback
+            # Initialize AI handler on first use if not already done
+            if st.session_state.ai_handler is None and not st.session_state.ai_init_attempted:
+                with st.spinner("🔌 Connecting to AI service..."):
+                    st.session_state.ai_handler = AIQueryHandler(
+                        st.session_state.fetcher,
+                        st.session_state.processor,
+                        provider=st.session_state.ai_provider
+                    )
+                    st.session_state.ai_init_attempted = True
+            
             if st.session_state.ai_handler and st.session_state.ai_handler.is_available():
                 st.warning(f"⚠️ Standard query failed: {str(e)}")
                 st.info("🤖 Trying AI-powered query interpretation...")
@@ -1236,7 +1256,7 @@ query = st.text_input(
 # Execute query
 if query:
     # Execute query with spinner (only during execution, not display)
-    with st.spinner("Analyzing query and fetching data..."):
+    with st.spinner("📊 Analyzing query and fetching data from MLB API..."):
         result, error = st.session_state.query_handler.execute_query(query)
     
     # Add to history
