@@ -85,9 +85,12 @@ if 'fetcher' not in st.session_state:
     st.session_state.processor = MLBDataProcessor()
     st.session_state.history = []
     # Initialize AI query handler
+    # Get AI provider from secrets or environment variable
+    ai_provider = st.secrets.get("AI_PROVIDER", os.getenv("AI_PROVIDER", "auto"))
     st.session_state.ai_handler = AIQueryHandler(
         st.session_state.fetcher,
-        st.session_state.processor
+        st.session_state.processor,
+        provider=ai_provider
     )
     # Initialize GitHub issue reporter
     st.session_state.issue_reporter = GitHubIssueReporter()
