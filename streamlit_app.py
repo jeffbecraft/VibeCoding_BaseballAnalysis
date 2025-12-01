@@ -87,6 +87,12 @@ if 'fetcher' not in st.session_state:
     # Initialize AI query handler
     # Get AI provider from secrets or environment variable
     ai_provider = st.secrets.get("AI_PROVIDER", os.getenv("AI_PROVIDER", "auto"))
+    
+    # Debug: Show what provider was selected (remove after verification)
+    if "debug_shown" not in st.session_state:
+        st.info(f"🔍 AI Provider: {ai_provider} | Has GEMINI_API_KEY: {'GEMINI_API_KEY' in st.secrets}")
+        st.session_state.debug_shown = True
+    
     st.session_state.ai_handler = AIQueryHandler(
         st.session_state.fetcher,
         st.session_state.processor,
