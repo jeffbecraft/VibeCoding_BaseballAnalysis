@@ -4,6 +4,56 @@
 
 ### Recent Enhancements (2025-11-30)
 
+#### Performance: Player Search Optimization ✅
+
+**Critical Performance Fix for Comparison Queries**
+
+**The Problem:**
+When comparing retired players (e.g., "Who hit more home runs? Ken Griffey Jr or Albert Pujols?"), the app was painfully slow:
+- Ken Griffey Jr. (retired 2010): 16 API calls to find him
+- Albert Pujols (retired 2022): 4 API calls to find him
+- **Total: 20 API calls, 23+ seconds just to find 2 players!**
+
+The old `search_players` method iterated through up to 30 historical seasons to find retired players, making 1 API call per season until it found a match.
+
+**The Solution:**
+Use MLB's direct `/people/search` endpoint that searches ALL players (active and retired) in a single API call.
+
+**Performance Improvement:**
+- **Before**: 23.62 seconds for 2 retired players (20 API calls)
+- **After**: 2.10 seconds for 2 retired players (2 API calls)
+- **Result**: **11x faster!**
+
+**What This Means for Users:**
+- Comparison queries now feel instant instead of painfully slow
+- No more waiting 20-30 seconds for retired player comparisons
+- Same fast performance whether players are active or retired
+
+**Files Changed:**
+- `src/data_fetcher.py`: Rewrote `search_players` to use `/people/search` endpoint
+- `tests/test_search_performance.py`: New test suite to prevent regression (new)
+
+**Testing:**
+- 4 new performance tests verify:
+  - Uses efficient `/people/search` endpoint (not iteration)
+  - Comparison queries complete in < 5 seconds
+  - Still finds active players correctly
+  - Still finds retired players correctly
+
+**Technical Details:**
+```python
+# Old (slow) approach:
+# Iterate through seasons 2025, 2024, 2023... until player found
+for year in range(current_year, current_year - 30, -1):
+    # 1 API call per year
+    
+# New (fast) approach:
+# Single API call searches all players
+data = api.get("people/search", params={"names": player_name})
+```
+
+---
+
 #### User Experience: Friendly Status Messages ✅
 
 **What Changed:**
