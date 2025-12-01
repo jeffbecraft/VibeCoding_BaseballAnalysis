@@ -104,7 +104,7 @@ class TestSearchPerformance(unittest.TestCase):
         self.assertLess(elapsed_time, 5.0,
                        f"Searching 2 retired players took {elapsed_time:.2f}s, should be < 5s")
         
-        print(f"\n✓ Performance test passed: 2 player searches in {elapsed_time:.2f}s")
+        print(f"\nPASS: Performance test - 2 player searches in {elapsed_time:.2f}s")
     
     def test_search_finds_active_players(self):
         """

@@ -275,6 +275,13 @@ class StreamlitMLBQuery:
                 has_comparison_word = any(word in query_lower for word in comparison_words)
                 has_or = ' or ' in query_lower
                 
+                # Also check for direct comparison keywords (compare, vs, versus, etc.)
+                comparison_keywords = ['compare', 'versus', 'vs', 'vs.', 'against', 'better than', 'worse than']
+                has_comparison_keyword = any(keyword in query_lower for keyword in comparison_keywords)
+                
+                # A query is likely a comparison if it has explicit keywords OR (comparison word + or)
+                is_likely_comparison = has_comparison_keyword or (has_comparison_word and has_or)
+                
                 # Extract player name
                 query_words = {'where', 'did', 'rank', 'what', 'was', 'show', 'me', 'the', 'top',
                                'who', 'are', 'in', 'for', 'find', 'leaders', 'ranking', 'get', 'era',
@@ -304,32 +311,62 @@ class StreamlitMLBQuery:
                     matches = re.finditer(pattern, query)
                     for name_match in matches:
                         potential_name = name_match.group(0).replace("'s", "").strip()
+                        
+                        # Filter out excluded words from multi-word names
+                        # E.g., "Compare Gunnar Henderson" → "Gunnar Henderson"
+                        name_parts = potential_name.split()
+                        filtered_parts = [part for part in name_parts if part.lower() not in exclude_words]
+                        
+                        # Only keep if we have at least one word left
+                        if not filtered_parts:
+                            continue
+                        
+                        potential_name = ' '.join(filtered_parts)
                         potential_name_lower = potential_name.lower()
                         
-                        words_in_name = potential_name_lower.split()
-                        if all(word not in exclude_words for word in words_in_name):
-                            if (potential_name_lower != team_name.lower() if team_name else True and
-                                potential_name_lower != league_name.lower() if league_name else True and
-                                len(potential_name) > 2):
-                                # For comparisons, collect all names; for others, take the first
-                                if not player_name:
-                                    player_name = potential_name
-                                all_player_names.append(potential_name)
-                    if player_name and not (has_comparison_word and has_or):  # Don't break early for comparison queries
+                        # Final validation
+                        if (potential_name_lower != team_name.lower() if team_name else True and
+                            potential_name_lower != league_name.lower() if league_name else True and
+                            len(potential_name) > 2):
+                            # For comparisons, collect all names; for others, take the first
+                            if not player_name:
+                                player_name = potential_name
+                            all_player_names.append(potential_name)
+                    if player_name and not is_likely_comparison:  # Don't break early for comparison queries
                         break
+                
+                # Deduplicate and filter out partial names from all_player_names
+                if all_player_names:
+                    # Remove duplicates while preserving order
+                    seen = set()
+                    unique_names = []
+                    for name in all_player_names:
+                        if name not in seen:
+                            seen.add(name)
+                            unique_names.append(name)
+                    
+                    # Filter out names that are substrings of longer names
+                    # (e.g., remove "Gunnar" if "Gunnar Henderson" exists)
+                    filtered_names = []
+                    for i, name in enumerate(unique_names):
+                        # Check if this name is a substring of any other name
+                        is_substring = False
+                        for j, other_name in enumerate(unique_names):
+                            if i != j and name in other_name and len(name) < len(other_name):
+                                is_substring = True
+                                break
+                        if not is_substring:
+                            filtered_names.append(name)
+                    
+                    all_player_names = filtered_names
                 
                 # Determine query type
                 ranking_keywords = ['rank', 'leader', 'leaders', 'top', 'best', 'worst']
                 wants_ranking = any(keyword in query_lower for keyword in ranking_keywords)
                 
                 # Check for comparison queries
-                # Direct comparison keywords
-                comparison_keywords = ['compare', 'versus', 'vs', 'vs.', 'against', 'better than', 'worse than']
-                has_comparison_keyword = any(keyword in query_lower for keyword in comparison_keywords)
-                
-                # Indirect comparison already detected earlier (has_comparison_word and has_or)
-                # It's a comparison if: explicit keyword OR (comparison word + 'or')
-                is_comparison = has_comparison_keyword or (has_comparison_word and has_or)
+                # We already detected this earlier as is_likely_comparison
+                is_comparison = is_likely_comparison
                 
                 # Career-specific query types
                 if is_career_query:
