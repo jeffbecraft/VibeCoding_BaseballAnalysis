@@ -131,21 +131,25 @@ class AIQueryHandler:
             if api_key:
                 genai.configure(api_key=api_key)
                 self.gemini = genai
-                # Use model names that work with the SDK's default v1beta API
-                # The v1beta API has different model names than the REST API
-                model_name = os.getenv('AI_MODEL', 'gemini-1.5-flash')
+                # Use model names with models/ prefix as returned by the API
+                # Default to gemini-2.5-flash (latest stable free tier model)
+                model_name = os.getenv('AI_MODEL', 'gemini-2.5-flash')
                 
-                # Map to v1beta compatible model names (without models/ prefix or -latest suffix)
-                # For v1beta API, use simple names like "gemini-1.5-flash" or "gemini-pro"
+                # Map user-friendly names to actual API model names (with models/ prefix)
                 model_mapping = {
-                    'gemini-1.5-flash': 'gemini-1.5-flash',
-                    'gemini-1.5-flash-latest': 'gemini-1.5-flash',
-                    'gemini-1.5-pro': 'gemini-1.5-pro',
-                    'gemini-1.5-pro-latest': 'gemini-1.5-pro',
-                    'gemini-pro': 'gemini-pro',
+                    'gemini-1.5-flash': 'models/gemini-flash-latest',  # Map old name to latest
+                    'gemini-1.5-pro': 'models/gemini-pro-latest',
+                    'gemini-2.5-flash': 'models/gemini-2.5-flash',
+                    'gemini-2.0-flash': 'models/gemini-2.0-flash',
+                    'gemini-pro': 'models/gemini-pro-latest',
+                    'gemini-flash': 'models/gemini-flash-latest',
                 }
+                # If model_name already has models/ prefix, use it as-is
+                if model_name.startswith('models/'):
+                    self.model = model_name
+                else:
+                    self.model = model_mapping.get(model_name, 'models/gemini-2.5-flash')
                 
-                self.model = model_mapping.get(model_name, 'gemini-1.5-flash')
                 self.provider = "gemini"
                 self.ai_available = True
                 logger.info(f"Using Google Gemini with model: {self.model}")
