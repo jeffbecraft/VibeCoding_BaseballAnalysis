@@ -282,7 +282,8 @@ class StreamlitMLBQuery:
                                'which', 'when', 'how', 'had', 'has', 'have', 'runs', 'hits', 'wins',
                                'saves', 'walks', 'doubles', 'triples', 'strikeouts', 'innings', 'games',
                                'average', 'errors', 'stolen', 'bases', 'percentage', 'batted', 'whip',
-                               'career', 'total', 'totals', 'all', 'time'}
+                               'career', 'total', 'totals', 'all', 'time', 'compare', 'versus', 'vs',
+                               'against', 'between', 'or', 'and', 'than', 'more', 'less', 'better', 'worse'}
                 
                 exclude_words = query_words.copy()
                 if team_name:
