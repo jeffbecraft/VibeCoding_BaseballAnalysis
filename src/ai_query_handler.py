@@ -131,15 +131,17 @@ class AIQueryHandler:
             if api_key:
                 genai.configure(api_key=api_key)
                 self.gemini = genai
-                # Use the stable model name for Gemini 1.5 Flash
-                # The SDK should handle the models/ prefix automatically
+                # Use the model name compatible with the SDK's default v1beta API
+                # gemini-1.5-flash is not in v1beta, use gemini-1.5-flash-latest or gemini-pro
                 model_name = os.getenv('AI_MODEL', 'gemini-1.5-flash')
-                # Ensure we're using the correct model identifier
-                if not model_name.startswith('models/'):
-                    # For newer SDK versions, use just the model name
-                    self.model = model_name
-                else:
-                    self.model = model_name
+                
+                # Map model names to v1beta compatible versions
+                model_mapping = {
+                    'gemini-1.5-flash': 'gemini-1.5-flash-latest',
+                    'gemini-1.5-pro': 'gemini-1.5-pro-latest',
+                }
+                
+                self.model = model_mapping.get(model_name, model_name)
                 self.provider = "gemini"
                 self.ai_available = True
                 logger.info(f"Using Google Gemini with model: {self.model}")
@@ -819,35 +821,16 @@ Generate Python code to answer this question using the MLB API."""
                 generated_code = response['message']['content'].strip()
             elif self.provider == "gemini":
                 # Use Google Gemini (cloud, free tier)
-                # Try with safety settings to avoid blocking
-                try:
-                    model = self.gemini.GenerativeModel(
-                        model_name=self.model,
-                    )
-                    full_prompt = f"{system_prompt}\n\nUser question: {user_prompt}"
-                    response = model.generate_content(
-                        full_prompt,
-                        generation_config={
-                            'temperature': 0.2,
-                            'max_output_tokens': 2000,
-                        }
-                    )
-                    generated_code = response.text.strip()
-                except Exception as gemini_error:
-                    # If model fails, try with the explicit models/ prefix
-                    print(f"⚠️ First attempt failed: {gemini_error}")
-                    print(f"🔄 Retrying with explicit model path...")
-                    model_with_prefix = f"models/{self.model}" if not self.model.startswith('models/') else self.model
-                    model = self.gemini.GenerativeModel(model_name=model_with_prefix)
-                    full_prompt = f"{system_prompt}\n\nUser question: {user_prompt}"
-                    response = model.generate_content(
-                        full_prompt,
-                        generation_config={
-                            'temperature': 0.2,
-                            'max_output_tokens': 2000,
-                        }
-                    )
-                    generated_code = response.text.strip()
+                model = self.gemini.GenerativeModel(model_name=self.model)
+                full_prompt = f"{system_prompt}\n\nUser question: {user_prompt}"
+                response = model.generate_content(
+                    full_prompt,
+                    generation_config={
+                        'temperature': 0.2,
+                        'max_output_tokens': 2000,
+                    }
+                )
+                generated_code = response.text.strip()
             else:
                 # Use OpenAI (cloud, paid)
                 response = self.openai.chat.completions.create(
