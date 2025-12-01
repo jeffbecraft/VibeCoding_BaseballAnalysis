@@ -1023,28 +1023,28 @@ with st.sidebar:
     st.divider()
     
     # AI Query Status
-    st.header("🤖 AI-Powered Queries")
+    st.header("🤖 AI Assistant")
     
     if st.session_state.ai_handler and st.session_state.ai_handler.is_available():
         provider_info = st.session_state.ai_handler.get_provider_info()
         
         if provider_info['provider'] == 'ollama':
-            st.success("✅ AI Assistant Enabled (FREE)")
+            st.success("✅ AI Assistant Ready (FREE)")
             st.caption(f"""
-            Using **Ollama** ({provider_info['model']}) - completely free!
-            AI can answer questions that don't match standard patterns.
+            Using **Ollama** ({provider_info['model']}) running locally.
+            Ask complex questions in natural language!
             """)
         elif provider_info['provider'] == 'openai':
-            st.success("✅ AI Assistant Enabled")
+            st.success("✅ AI Assistant Ready")
             st.caption(f"""
-            Using **OpenAI** ({provider_info['model']})
-            AI can answer questions that don't match standard patterns.
+            Using **OpenAI** ({provider_info['model']}).
+            Ask complex questions in natural language!
             """)
         elif provider_info['provider'] == 'gemini':
-            st.success("✅ AI Assistant Enabled (FREE)")
+            st.success("✅ AI Assistant Ready (FREE)")
             st.caption(f"""
-            Using **Google Gemini** ({provider_info['model']}) - free tier!
-            AI can answer questions that don't match standard patterns.
+            Using **Google Gemini** ({provider_info['model']}).
+            Ask complex questions in natural language!
             """)
         
         # Test AI connection
@@ -1057,12 +1057,30 @@ with st.sidebar:
             else:
                 st.error(f"❌ {test_result['message']}")
     else:
-        st.warning("⚠️ AI Assistant Not Available")
+        st.info("ℹ️ AI Assistant Not Configured")
         st.caption("""
-        To enable AI-powered queries, choose one option:
+        AI is optional - standard queries work without it.
+        Configure AI to ask complex questions in natural language.
         """)
         
-        with st.expander("🆓 Option 1: Ollama (FREE - Recommended)"):
+        with st.expander("🆓 Google Gemini (FREE)"):
+            st.markdown("""
+            **Use Google's Gemini AI - free tier available!**
+            
+            1. Get API key from [Google AI Studio](https://aistudio.google.com/apikey)
+            2. Set environment variable:
+               ```bash
+               export GEMINI_API_KEY='your-key-here'
+               ```
+            3. Restart this app
+            
+            **Benefits:**
+            - ✅ Free tier (generous limits)
+            - ✅ Fast and powerful
+            - ✅ Cloud-based (no local install)
+            """)
+        
+        with st.expander("🆓 Ollama (FREE - Local)"):
             st.markdown("""
             **Run AI models locally - completely free!**
             
@@ -1078,10 +1096,9 @@ with st.sidebar:
             - ✅ Completely free
             - ✅ Runs on your computer
             - ✅ Private (no data sent to cloud)
-            - ✅ No API keys needed
             """)
         
-        with st.expander("💳 Option 2: OpenAI (Paid)"):
+        with st.expander("💳 OpenAI (Paid)"):
             st.markdown("""
             **Use OpenAI's cloud models**
             
