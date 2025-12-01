@@ -4,6 +4,54 @@
 
 ### Recent Enhancements (2025-11-30)
 
+#### User Experience: Friendly Status Messages ✅
+
+**What Changed:**
+All user-facing status messages have been updated to use conversational, friendly language suitable for non-technical baseball fans.
+
+**Before:**
+```
+📊 Analyzing query and fetching data from MLB API...
+🔌 Connecting to AI service...
+Step 1: Found cached code from previous query
+Step 2: Analyzing AI-generated code for security
+```
+
+**After:**
+```
+⏳ Looking that up for you... This should just take a moment!
+⏳ Getting ready to answer your question... This may take a minute the first time, but I'll remember for next time!
+✓ I remembered how to answer this question
+✓ Making sure everything is safe...
+```
+
+**Design Principles:**
+1. **Personal Voice**: "I understood", "I'll remember" (not passive voice)
+2. **Time Transparency**: Set expectations about timing
+3. **No Jargon**: Removed terms like "cached code", "security validation", "AI service"
+4. **Friendly Reassurance**: Positive, encouraging tone
+5. **Learning Explanation**: Help users understand benefits without technical details
+
+**Files Changed:**
+- `streamlit_app.py`: All spinner and info messages
+- `src/ai_query_handler.py`: All progress and result step messages
+- `tests/test_friendly_messages.py`: Comprehensive test suite (new)
+- `docs/DOCUMENTATION_REVIEW_2025.md`: Updated with UX improvements
+
+**Testing:**
+- New test suite: `tests/test_friendly_messages.py`
+- Tests verify no technical jargon appears
+- Tests ensure consistent friendly tone
+- Tests verify timing expectations are set
+
+**Impact:**
+- More welcoming to non-technical users
+- Clearer understanding of what's happening
+- Better timing expectations
+- Maintains technical accuracy while being accessible
+
+---
+
 #### Industry Best Practices Implementation
 
 **1. Structured Logging** ✅

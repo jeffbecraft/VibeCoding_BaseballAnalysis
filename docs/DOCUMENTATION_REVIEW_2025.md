@@ -328,3 +328,133 @@ The documentation is now production-ready and suitable for educational purposes,
 **Review Completed**: January 2025  
 **Reviewed By**: GitHub Copilot (Claude Sonnet 4.5)  
 **Status**: ✅ Complete - All beginner-friendly documentation requirements met
+
+---
+
+## Update: User-Friendly Messages (November 2025)
+
+### Overview
+
+All user-facing status messages have been updated to use conversational, friendly language suitable for non-technical baseball fans.
+
+### Changes Made
+
+#### 1. Streamlit App Messages (streamlit_app.py)
+
+**AI Initialization Spinners** (Lines 429, 476, 563):
+```python
+# Before:
+with st.spinner("🔌 Connecting to AI service...")
+
+# After:
+with st.spinner("⏳ Getting ready to answer your question... This may take a minute the first time, but I'll remember for next time!")
+```
+
+**AI Usage Messages** (Lines 438, 485):
+```python
+# Before:
+st.info("🤖 This question requires AI to answer. Using AI to interpret your question...")
+
+# After:
+st.info("🤖 I'll need to think about this one... Just a moment!")
+```
+
+**Query Execution Spinner** (Line 1304):
+```python
+# Before:
+with st.spinner("📊 Analyzing query and fetching data from MLB API...")
+
+# After:
+with st.spinner("⏳ Looking that up for you... This should just take a moment!")
+```
+
+#### 2. AI Query Handler Messages (ai_query_handler.py)
+
+**Cached Query Messages** (Lines 259-277):
+```python
+# Before:
+"Step 1: Found cached code from previous query"
+"Step 2: Executing cached code"
+"Step 3: Code executed successfully"
+
+# After:
+"✓ I remembered how to answer this question"
+"✓ Got your answer faster than the first time"
+"✓ All done!"
+```
+
+**Security Validation** (Lines 302-318):
+```python
+# Before:
+"Analyzing AI-generated code for security and unauthorized imports"
+
+# After:
+"Making sure everything is safe..."
+```
+
+**Retry Messages** (Lines 396-439):
+```python
+# Before:
+"First attempt failed. Trying again with error context..."
+
+# After:
+"Let me try a different approach..."
+```
+
+### Design Principles
+
+All messages now follow these principles:
+
+1. **Personal Voice**: Use "I" to create connection ("I understood", "I'll remember")
+2. **Time Transparency**: Set expectations ("first time takes a minute", "this will be quick")
+3. **No Jargon**: Remove technical terms (AI service → getting ready, cached code → remember)
+4. **Friendly Reassurance**: Positive tone ("Just a moment!", "All done!")
+5. **Learning Explanation**: Help users understand caching ("I'll remember for next time")
+
+### Testing
+
+Created comprehensive test suite: `tests/test_friendly_messages.py`
+
+**Tests included:**
+- ✅ Cached query messages are friendly
+- ✅ Security check messages avoid jargon  
+- ✅ Retry messages are encouraging
+- ✅ Success messages use conversational language
+- ✅ No technical jargon in any user messages
+- ✅ Messages explain timing expectations
+- ✅ Consistent personal voice throughout
+- ✅ Consistent friendly tone throughout
+
+**Test Coverage:**
+- All user-facing message scenarios
+- Both streamlit_app.py and ai_query_handler.py
+- Progress callbacks and result steps
+- First-time vs cached query messages
+
+### Benefits
+
+**For Non-Technical Users:**
+- No software development knowledge required
+- Clear understanding of what's happening
+- Timing expectations set appropriately
+- Caching benefits explained in simple terms
+
+**For User Experience:**
+- More approachable and welcoming
+- Reduces confusion and anxiety
+- Builds trust through transparency
+- Matches expectations for a baseball stats app
+
+**For Maintenance:**
+- Clear test suite for message quality
+- Documented principles for future messages
+- Consistent voice across application
+
+### Related Files
+
+- `streamlit_app.py`: Web UI messages
+- `src/ai_query_handler.py`: Progress and result messages
+- `tests/test_friendly_messages.py`: Comprehensive test suite
+- `CHANGELOG.md`: User-facing change log
+
+**Status**: ✅ Complete - All user messages are friendly and conversational

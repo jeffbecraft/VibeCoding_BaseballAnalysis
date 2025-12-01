@@ -253,9 +253,31 @@ class AIQueryHandler:
             }
         
         try:
+            # ==================================================================================
+            # STEP 0: CHECK CODE CACHE (INSTANT RESULTS FOR REPEATED QUESTIONS)
+            # ==================================================================================
+            # User Experience Design for Cached Queries:
+            #
+            # When users ask the same question twice, we don't need to regenerate code.
+            # Instead of saying "Found cached code from previous query" (technical),
+            # we say "I remember this question!" (friendly, personal).
+            #
+            # Message Design:
+            # - "Good news" - positive framing
+            # - "I remember" - personal voice, not "cache hit"
+            # - "This will be quick" - sets timing expectation
+            #
+            # Result Steps:
+            # - "I remembered" (past tense, personal) not "Cache retrieved"
+            # - "Got your answer faster" - explains benefit without saying "cached"
+            # - Include timing to show the speed benefit
+            # - "All done!" - friendly completion
+            # ==================================================================================
+            
             # Step 0: Check code cache
             cached_entry = self.code_cache.get(question, season)
             if cached_entry:
+                # Friendly message - "I remember" instead of "cached code found"
                 report_progress("⏳ Good news", "I remember this question! This will be quick...")
                 code = cached_entry['code']
                 
@@ -267,17 +289,34 @@ class AIQueryHandler:
                 
                 if result.get('success'):
                     result['cached'] = True
+                    # Friendly steps - personal voice, no technical jargon
                     result['steps'] = [
-                        "✓ I remembered how to answer this question",
-                        "✓ Got your answer faster than the first time",
-                        f"✓ Found the stats in {execution_time:.2f} seconds",
-                        "✓ All done!"
+                        "✓ I remembered how to answer this question",  # Not "Retrieved cached code"
+                        "✓ Got your answer faster than the first time",  # Explains benefit
+                        f"✓ Found the stats in {execution_time:.2f} seconds",  # Show speed
+                        "✓ All done!"  # Friendly completion
                     ]
                     result['code'] = code
                     report_progress("✅ Done", f"Found your answer in {execution_time:.2f} seconds!")
                 return result
             
+            # ==================================================================================
+            # STEP 1: GENERATE CODE WITH AI (FIRST-TIME QUESTIONS)
+            # ==================================================================================
+            # User Experience Design:
+            #
+            # When asking a new question, AI needs to generate code. This takes time.
+            # Instead of "Sending to AI model" or "Generating code" (technical),
+            # we say "Figuring out how to answer" (natural, understandable).
+            #
+            # Timing Transparency:
+            # - "might take a minute or two the first time" - sets expectation
+            # - Explains WHY it's slower (first time vs. cached)
+            # - Prepares user for brief wait without technical details
+            # ==================================================================================
+            
             # Step 1: Send question to AI
+            # Friendly message - "Figuring out" instead of "Generating code"
             report_progress("🤔 Thinking", "Figuring out how to answer your question... This might take a minute or two the first time.")
             try:
                 code = self._generate_code(question, season)
@@ -296,7 +335,23 @@ class AIQueryHandler:
                     'suggestion': 'The AI model may have failed to respond. Check Streamlit logs.'
                 }
             
+            # ==================================================================================
+            # STEP 2: VALIDATE GENERATED CODE FOR SAFETY
+            # ==================================================================================
+            # User Experience Design:
+            #
+            # We check generated code for security issues (unauthorized imports, file access).
+            # Instead of "Analyzing code for security validation" (sounds scary/technical),
+            # we say "Making sure everything is safe" (reassuring, simple).
+            #
+            # Why This Matters:
+            # - Users don't need to know about security validation details
+            # - "Safe" is universally understood
+            # - Brief reassurance without creating anxiety
+            # ==================================================================================
+            
             # Step 2: Validate generated code
+            # Friendly message - "Making sure it's safe" instead of "Security validation"
             report_progress("✅ Double-checking", "Making sure everything is safe...")
             is_safe, safety_message = self._validate_code_safety(code)
             

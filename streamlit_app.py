@@ -423,9 +423,29 @@ class StreamlitMLBQuery:
         parsed = self.parser.parse_query(query_text)
         
         if not parsed:
+            # ==================================================================================
+            # AI-POWERED QUERY FALLBACK
+            # ==================================================================================
+            # When the standard parser can't handle the query (e.g., complex comparisons,
+            # unusual phrasings), we fall back to AI to interpret and answer the question.
+            #
+            # User Experience Design:
+            # - We use friendly, conversational messages to make the app approachable
+            # - Avoid technical jargon (no "AI service", "cache", "initialization")
+            # - Set timing expectations (first time slower, but we remember)
+            # - Use personal voice ("I'll", "I remember") to feel more natural
+            #
+            # The init spinner explains:
+            # 1. What's happening: "Getting ready to answer"
+            # 2. Timing: "May take a minute the first time" (set expectations)
+            # 3. Future benefit: "I'll remember for next time" (explains caching)
+            # ==================================================================================
+            
             # Try AI-powered query handling as fallback
             # Initialize AI handler on first use if not already done
             if st.session_state.ai_handler is None and not st.session_state.ai_init_attempted:
+                # Friendly spinner message - explains timing and caching without technical terms
+                # "first time" + "remember" helps users understand why subsequent queries are faster
                 with st.spinner("⏳ Getting ready to answer your question... This may take a minute the first time, but I'll remember for next time!"):
                     st.session_state.ai_handler = AIQueryHandler(
                         st.session_state.fetcher,
@@ -435,6 +455,8 @@ class StreamlitMLBQuery:
                     st.session_state.ai_init_attempted = True
             
             if st.session_state.ai_handler and st.session_state.ai_handler.is_available():
+                # Friendly info message - personal voice ("I'll") and reassurance ("Just a moment")
+                # Avoids technical "AI is required" or "Using AI to interpret"
                 st.info("🤖 I'll need to think about this one... Just a moment!")
                 
                 # Create progress placeholder
@@ -1300,8 +1322,34 @@ query = st.text_input(
 
 # Execute query
 if query:
+    # ==================================================================================
+    # QUERY EXECUTION WITH FRIENDLY SPINNER
+    # ==================================================================================
+    # Design Decision: Keep spinner simple and reassuring
+    #
+    # Why "Looking that up for you"?
+    # - Natural, conversational language (how you'd talk to a librarian)
+    # - Personal ("for you") makes it feel helpful, not robotic
+    # - Avoids technical terms like "analyzing", "fetching", "API"
+    #
+    # Why "This should just take a moment"?
+    # - Sets timing expectation (brief wait)
+    # - "should" is friendly (not demanding/certain)
+    # - "just" minimizes perceived wait time
+    #
+    # What we AVOID saying:
+    # - "Analyzing query and fetching data from MLB API" (too technical)
+    # - "Processing request" (corporate/robotic)
+    # - "Please wait" (passive/demanding)
+    #
+    # Spinner Scope:
+    # - Only wraps the actual query execution
+    # - Stops BEFORE displaying results
+    # - Users can interact with results immediately (no lingering spinner)
+    # ==================================================================================
+    
     # Execute query with spinner (only during execution, not display)
-    with st.spinner("📊 Analyzing query and fetching data from MLB API..."):
+    with st.spinner("⏳ Looking that up for you... This should just take a moment!"):
         result, error = st.session_state.query_handler.execute_query(query)
     
     # Add to history
